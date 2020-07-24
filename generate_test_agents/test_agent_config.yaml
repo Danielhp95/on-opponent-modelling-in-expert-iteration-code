@@ -1,0 +1,28 @@
+agents:
+  ppo:
+    actor_arch: None
+    adam_eps: 1.0e-05
+    critic_arch: None
+    discount: 0.99
+    entropy_weight: 0.01
+    gae_tau: 0.95
+    gradient_clip: 5
+    horizon: 256
+    learning_rate: 0.0003
+    mini_batch_size: 32
+    optimization_epochs: 10
+    phi_arch: MLP
+    ppo_ratio_clip: 0.2
+    use_cuda: false
+    use_gae: true
+experiment:
+  algorithms:
+  - ppo
+  environment: ['Connect4-v0', 'multiagent-sequential']
+  experiment_id: generate_test_agents
+  checkpoint_at_iterations: [10, 30, 50]
+  self_play_training_schemes:
+  - deltauniform
+self_play_training_schemes:
+  deltauniform:
+      delta: 0.0
