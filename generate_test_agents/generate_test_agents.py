@@ -27,7 +27,7 @@ def generate_test_agents(task: 'Task', sp_schemes: List, agents: List,
             train(task, agent, sp_scheme,
                   checkpoint_at_iterations=exper_config['checkpoint_at_iterations'],
                   base_path=f"{exper_config['experiment_id']}")
-            pickle.dump(sp_scheme, open(f"{exper_config['experiment_id']}/{sp_scheme.name}.pickle"))
+            pickle.dump(sp_scheme, open(f"{exper_config['experiment_id']}/{sp_scheme.name}.pickle", 'wb'))
 
 
 def train(task: 'Task', training_agent: 'Agent',
