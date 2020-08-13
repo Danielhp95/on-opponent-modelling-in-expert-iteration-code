@@ -21,7 +21,6 @@ from regym.rl_loops.multiagent_loops import self_play_training
 
 def generate_test_agents(task: 'Task', sp_schemes: List, agents: List,
                          exper_config: Dict):
-    logging.basicConfig()
     for sp_scheme in sp_schemes:
         for agent in agents:
             train(task, agent, sp_scheme,
@@ -53,7 +52,6 @@ def train(task: 'Task', training_agent: 'Agent',
     completed_iterations, start_time = 0, time.time()
 
     trained_policy_save_directory = base_path
-    import ipdb; ipdb.set_trace()
     final_iteration = max(checkpoint_at_iterations)
 
     for target_iteration in sorted(checkpoint_at_iterations):
@@ -119,6 +117,7 @@ def load_configs(config_file_path: str):
     return experiment_config, agents_config, self_play_configs
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(description='Generates test agents for experiments of paper "On Opponent Modelling in Expert Iteration"')
     parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment, self-play algorithms and agents')
     args = parser.parse_args()
