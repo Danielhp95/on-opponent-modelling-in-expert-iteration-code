@@ -88,7 +88,7 @@ def train_for_given_iterations(task, training_agent, self_play_scheme,
     (menagerie, trained_agent,
      trajectories) = self_play_training(task=task, training_agent=training_agent, self_play_scheme=self_play_scheme,
                                         target_episodes=next_training_iterations, initial_episode=completed_iterations,
-                                        menagerie=menagerie, menagerie_path=menagerie_path)
+                                        menagerie=menagerie, menagerie_path=menagerie_path, show_progress=True)
     training_duration = time.time() - training_start
     logger.info('Training between iterations [{}, {}]: {:.2} seconds'.format(
                 completed_iterations, completed_iterations + next_training_iterations,
