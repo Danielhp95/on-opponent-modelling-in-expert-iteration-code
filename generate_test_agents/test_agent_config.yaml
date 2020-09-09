@@ -1,5 +1,16 @@
+cnn_arch: &cnn_architecture
+    phi_arch: 'CNN'
+    use_batch_normalization: False
+    preprocessed_input_dimensions: [7, 6]
+    channels: [3, 10, 20, 20, 20, 1]
+    kernel_sizes: [3, 3, 3, 3, 3]
+    paddings: [1, 1, 1, 1, 1]
+    strides: [1, 1, 1, 1, 1]
+    residual_connections: [(0,1), (1,2), (2,3), (3,4)] !!python/tuple
+
 agents:
   ppo:
+    <<: *cnn_architecture
     actor_arch: None
     adam_eps: 1.0e-05
     critic_arch: None
@@ -7,11 +18,10 @@ agents:
     entropy_weight: 0.01
     gae_tau: 0.95
     gradient_clip: 5
-    horizon: 256
+    horizon: 2048
     learning_rate: 0.0003
-    mini_batch_size: 32
+    mini_batch_size: 256
     optimization_epochs: 10
-    phi_arch: MLP
     ppo_ratio_clip: 0.2
     use_cuda: false
     use_gae: true
@@ -19,8 +29,8 @@ experiment:
   algorithms:
   - ppo
   environment: ['Connect4-v0', 'multiagent-sequential']
-  experiment_id: generate_test_agents
-  checkpoint_at_iterations: [10, 30, 50]
+  experiment_id: first_cnn_connect_4_experiment
+  checkpoint_at_iterations: [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]
   self_play_training_schemes:
   - deltauniform
 self_play_training_schemes:
