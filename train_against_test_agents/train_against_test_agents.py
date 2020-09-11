@@ -104,10 +104,9 @@ def train_for_given_iterations(task, training_agent: 'Agent', opponent: 'Agent',
                                logger) -> List:
     agent_vector = [opponent]
     agent_vector.insert(agent_position, training_agent)
-    training_episodes = 1
     training_start = time.time()
     trajectories = task.run_episodes(agent_vector, training=True,
-                                     num_envs=1,  # Max number of environments
+                                     num_envs=-1,  # Max number of environments
                                      num_episodes=training_episodes)
     training_duration = time.time() - training_start
     logger.info('Training for {} took {:.2} seconds'.format(
@@ -122,7 +121,6 @@ def benchmark_agent(task: Task, agent: 'Agent', opponent: 'Agent',
                     summary_writer: Optional[SummaryWriter]):
     agent_vector = [opponent]
     agent_vector.insert(agent_position, agent)
-    benchmarking_episodes = 1
     training_start = time.time()
     trajectories = task.run_episodes(agent_vector, training=False,
                                      num_envs=-1,  # Max number of environments
