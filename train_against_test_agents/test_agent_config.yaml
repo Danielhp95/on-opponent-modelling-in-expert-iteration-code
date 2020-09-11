@@ -1,0 +1,42 @@
+cnn_arch: &cnn_architecture
+    phi_arch: 'CNN'
+    use_batch_normalization: True
+    preprocessed_input_dimensions: [7, 6]
+    channels: [3, 10, 20, 20, 20, 1]
+    kernel_sizes: [3, 3, 3, 3, 3]
+    paddings: [1, 1, 1, 1, 1]
+    strides: [1, 1, 1, 1, 1]
+#   residual_connections: [(0,1), (1,2), (2,3), (3,4)] !!python/tuple
+
+agents:
+  expert_iteration_no_opponent_modelling:
+    <<: *cnn_architecture
+    use_agent_modelling: False
+    use_apprentice_in_expert: True
+    games_per_iteration: 1
+    # Dataset params
+    initial_memory_size: 3000
+    memory_size_increase_frequency: 50
+    end_memory_size: 20000
+    # MCTS config
+    mcts_budget: 1
+    mcts_rollout_budget: 100
+    mcts_exploration_factor: 1.4142
+    mcts_use_dirichlet: True
+    mcts_dirichlet_alpha: 1.4142
+    # Neural net config
+    batch_size: 64
+    num_epochs_per_iteration: 3
+    learning_rate: 1.0e-3
+    # NN: Feature extractor
+    feature_extractor_arch: 'CNN'
+
+experiment:
+  algorithms:
+  - expert_iteration_no_opponent_modelling
+  environment: ['Connect4-v0', 'multiagent-sequential']
+  experiment_id: test_exit_train_against_fixed_agent
+  desired_winrate: 0.7
+  # ideally, a multiple of policy updates. Param :games_per iteration:
+  training_episodes: 1000
+  benchmarking_episodes: 100
