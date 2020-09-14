@@ -25,19 +25,22 @@ def generate_test_agents(task: 'Task', sp_schemes: List, agents: List,
     for sp_scheme in sp_schemes:
         for agent in agents:
             train(task, agent, sp_scheme,
-                  checkpoint_at_iterations=exper_config['checkpoint_at_iterations'],
+                  training_episodes=exper_config['training_episodes'],
+                  save_interval=exper_config['save_interval'],
                   base_path=f"{exper_config['experiment_id']}")
             dill.dump(sp_scheme, open(f"{exper_config['experiment_id']}/{sp_scheme.name}.dill", 'wb'))
 
 
 def train(task: 'Task', training_agent: 'Agent',
           self_play_scheme: SelfPlayTrainingScheme,
-          checkpoint_at_iterations: List[int], base_path: str):
+          training_episodes: int, save_interval: int,
+          base_path: str):
     """
     :param task: Task on which agents will be trained
     :param training_agent: agent representation + training algorithm which will be trained in this process
     :param self_play_scheme: self play scheme used to meta train the param training_agent.
-    :param checkpoint_at_iterations: array containing the episodes at which the agents will be cloned for benchmarking against one another
+    :param training_episodes: total amount of training episodes
+    :param save_interval: Number of episodes to elapse before saving :param: training_agent to disk
     :param base_path: Base directory from where subdirectories will be accessed to reach menageries, save episodic rewards and save checkpoints of agents.
     """
 
@@ -54,15 +57,14 @@ def train(task: 'Task', training_agent: 'Agent',
     completed_iterations, start_time = 0, time.time()
 
     trained_policy_save_directory = base_path
-    final_iteration = max(checkpoint_at_iterations)
 
-    for target_iteration in sorted(checkpoint_at_iterations):
+    for target_iteration in range(save_interval, training_episodes+1, save_interval):
         next_training_iterations = target_iteration - completed_iterations
         (menagerie, trained_agent,
          trajectories) = train_for_given_iterations(task, training_agent, self_play_scheme,
                                                     menagerie, menagerie_path,
                                                     next_training_iterations, completed_iterations, logger)
-        logger.info('Training completion: {}%'.format(100 * target_iteration / final_iteration))
+        logger.info('Training completion: {}%'.format(100 * target_iteration / training_episodes))
         del trajectories # we are not using them here
         completed_iterations += next_training_iterations
         save_trained_policy(trained_agent,
