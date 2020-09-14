@@ -25,8 +25,8 @@ def generate_test_agents(task: 'Task', sp_schemes: List, agents: List,
     for sp_scheme in sp_schemes:
         for agent in agents:
             train(task, agent, sp_scheme,
-                  training_episodes=exper_config['training_episodes'],
-                  save_interval=exper_config['save_interval'],
+                  training_episodes=int(exper_config['training_episodes']),
+                  save_interval=int(exper_config['save_interval']),
                   base_path=f"{exper_config['experiment_id']}")
             dill.dump(sp_scheme, open(f"{exper_config['experiment_id']}/{sp_scheme.name}.dill", 'wb'))
 

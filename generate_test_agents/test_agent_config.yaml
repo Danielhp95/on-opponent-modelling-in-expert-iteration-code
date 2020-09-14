@@ -30,8 +30,8 @@ experiment:
   - ppo
   environment: ['Connect4-v0', 'multiagent-sequential']
   experiment_id: long_ppo_test_agent_training
-  training_episodes: 1.e7
-  save_interval: 1.e4
+  training_episodes: 10000000
+  save_interval: 10000
   self_play_training_schemes:
   - deltauniform
 self_play_training_schemes:
