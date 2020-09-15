@@ -1,10 +1,13 @@
 import os
-import gym_connect4
 import argparse
+
+import matplotlib.pyplot as plt
+import gym_connect4
 
 import regym
 from regym.environments import generate_task, EnvType
 from regym.game_theory import compute_winrate_matrix_metagame, compute_nash_averaging
+from regym.plotting.game_theory import plot_winrate_matrix
 from regym.rl_algorithms import load_population_from_path
 
 import numpy as np
@@ -40,18 +43,19 @@ def main(path: str, name: str):
         agent.training = False
 
     winrate_matrix = compute_winrate_matrix_metagame(
-            population=sorted_population, episodes_per_matchup=1000, task=task)
+            population=sorted_population, episodes_per_matchup=200, task=task,
+            is_game_symmetrical=False)
     maxent_nash, nash_averaging = compute_nash_averaging(
             winrate_matrix, perform_logodds_transformation=True)
 
     winrate_matrix = np.array(winrate_matrix)
     print('Saving winrate_matrix, max-entropy Nash equilibrium for game defined by winrate matrix and Nash averaging')
-    np.savetxt(f'{name}_winrate_matrix.csv', winrate_matrix, delimiter=', ')
-    np.savetxt(f'{name}_maxent_nash.csv', maxent_nash, delimiter=', ')
-    np.savetxt(f'{name}_nash_averaging.csv', maxent_nash, delimiter=', ')
+    np.savetxt(f'{name}/winrate_matrix.csv', winrate_matrix, delimiter=', ')
+    np.savetxt(f'{name}/maxent_nash.csv', maxent_nash, delimiter=', ')
+    np.savetxt(f'{name}/nash_averaging.csv', maxent_nash, delimiter=', ')
 
     ax = plot_winrate_matrix(winrate_matrix)
-    
+
     plt.show()
 
 
@@ -60,4 +64,5 @@ if __name__ == "__main__":
     parser.add_argument('--path', required=True, help='Path to directory containing trained agents to be benchmarked')
     parser.add_argument('--name', required=True, help='Identifier, used in file creation')
     args = parser.parse_args()
+    os.mkdir(args.name)
     main(path=args.path, name=args.name)
