@@ -1,0 +1,5 @@
+winrate_matrix_test_agents = 'hi 1'
+nash_averaging_evolutions_test_agents = 'hi 2'
+winrate_matrix_mcts_agents = 'hi 3'
+winrate_matrix_mcts_and_test_agents = 'hi 4'
+nash_averaging_mcts_and_test_agents = 'hi 5'
