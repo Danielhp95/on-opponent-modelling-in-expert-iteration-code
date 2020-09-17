@@ -51,7 +51,6 @@ def plot_progression_nash_equilibriums(progression_nash: np.ndarray, show_annota
     ax.set_ylabel(ylabel='benchmarking round', fontdict={'fontsize': 30})
     ax.set_title(label='Progression of Nash equilibrium during training', fontdict={'fontsize': 30})
     return ax
-    plt.show()
 
 
 if __name__ == "__main__":
