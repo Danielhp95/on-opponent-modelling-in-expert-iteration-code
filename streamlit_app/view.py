@@ -173,12 +173,16 @@ def plot_nash_averaging_evolution_test_agents(evolution_nash_averaging_test_agen
 
 
 def plot_mcts_equivalent_strength(mcts_equivalent_strength: np.ndarray):
-    test_agent_id = mcts_equivalent_strength[:, 0]
+    test_agent_processed_timesteps = mcts_equivalent_strength[:, 0]
+    test_agent_processed_timesteps = [int(x) for x in test_agent_processed_timesteps]
     mcts_equivalent_strengths = mcts_equivalent_strength[:, 1]
-    ax = sns.lineplot(test_agent_id, mcts_equivalent_strengths,
+
+    ax = sns.lineplot(test_agent_processed_timesteps, mcts_equivalent_strengths,
                       dashes=True, marker='o')
+    ax.set_xticks(test_agent_processed_timesteps)
+    ax.set_xticklabels(test_agent_processed_timesteps, rotation=90, ha='center')
     ax.set_title('MCTS equivalent strength for Test agents')
-    ax.set_xlabel('Test agent ID')
+    ax.set_xlabel('Test agent processed timesteps')
     ax.set_ylabel('MCTS budget')
     st.pyplot()
 
