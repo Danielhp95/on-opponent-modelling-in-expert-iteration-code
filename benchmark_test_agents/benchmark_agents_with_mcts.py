@@ -37,11 +37,10 @@ This script generates 3 .csv files:
 
 
 def main(population: List, name: str):
-    import ipdb; ipdb.set_trace()
     task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION)
 
     winrate_matrix = compute_winrate_matrix_metagame(
-            population=sorted_population, episodes_per_matchup=200, task=task)
+            population=population, episodes_per_matchup=200, task=task)
     maxent_nash, nash_averaging = compute_nash_averaging(
             winrate_matrix, perform_logodds_transformation=True)
 
