@@ -9,11 +9,16 @@ import regym
 from regym.environments import generate_task, EnvType
 from regym.game_theory import compute_winrate_matrix_metagame, compute_nash_averaging
 from regym.plotting.game_theory import plot_winrate_matrix
-from regym.rl_algorithms import load_population_from_path
+from regym.rl_algorithms import load_population_from_path, build_MCTS_Agent
 
 import numpy as np
 
 '''
+
+TODO: merge this with benchmark_agents.py
+This script is a copy of benchmark_agents.py but adds a list
+of MCTS agents to the benchmark.
+
 DESCRIPTION:
 
 Once we have generated a population of agents via the
@@ -32,11 +37,11 @@ This script generates 3 .csv files:
 
 
 def main(population: List, name: str):
+    import ipdb; ipdb.set_trace()
     task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION)
 
     winrate_matrix = compute_winrate_matrix_metagame(
-            population=sorted_population, episodes_per_matchup=200, task=task,
-            is_game_symmetrical=False)
+            population=sorted_population, episodes_per_matchup=200, task=task)
     maxent_nash, nash_averaging = compute_nash_averaging(
             winrate_matrix, perform_logodds_transformation=True)
 
@@ -58,6 +63,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     os.mkdir(args.name)
 
+    ### To refactor at some point
     #sort_fn = lambda x: int(x.split('_')[-1][:-3])  # ExIt
     sort_fn = lambda x: int(x.split('/')[-1].split('_')[0])  # PPO test training
     sorted_population = load_population_from_path(path=args.path, sort_fn=sort_fn)
@@ -65,5 +71,22 @@ if __name__ == "__main__":
     for agent in sorted_population:
         agent.requires_environment_model = False
         agent.training = False
+    ###
 
-    main(population=sorted_population, name=args.name)
+    # Taken from MCTS equivalent strength benchmarking
+    mcts_budgets = [29, 42, 42, 38, 45, 56, 48, 49, 51, 42, 53, 46, 35, 49, 49,
+                    42, 45, 40, 45, 42, 47, 38, 42, 47, 45, 37, 42, 35, 39, 25,
+                    38, 34, 33, 38, 40]
+    mcts_population = []
+    for budget in mcts_budgets:
+        initial_mcts_config = {'budget': budget, 'rollout_budget': 100,
+                               'selection_phase': 'ucb1',
+                               'exploration_factor_ucb1': 1.41,
+                               'use_dirichlet': False,
+                               'dirichlet_alpha': None}
+        mcts_population.append(
+            build_MCTS_Agent(generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION),
+                             initial_mcts_config, agent_name=f'MCTS:{budget}')
+        )
+
+    main(population=sorted_population+mcts_population, name=args.name)
