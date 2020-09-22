@@ -32,15 +32,21 @@ def load_results(results_dir: str):
 
     results = dict()
     results['winrate_matrix_test_agents'] = load_file(results_dir, 'winrate_matrix_test_agents.csv')
-    results['evolution_nash_averaging_test_agents'] = load_file(results_dir, 'evolution_nash_averaging_test_agents.csv')
-    results['winrate_matrix_mcts'] = load_file(results_dir, 'winrate_matrix_mcts.csv')
     results['maxent_nash_test_agents'] = load_file(results_dir, 'maxent_nash_test_agents.csv')
+
+    results['evolution_nash_averaging_test_agents'] = load_file(results_dir, 'evolution_nash_averaging_test_agents.csv')
+
+    results['winrate_matrix_mcts'] = load_file(results_dir, 'winrate_matrix_mcts.csv')
+    results['maxent_nash_mcts'] = load_file(results_dir, 'maxent_nash_test_agents.csv')
+
     results['mcts_equivalent_strength_test_agents'] = load_file(results_dir, 'mcts_equivalent_strength_test_agents.csv')
+
+    results['winrate_matrix_test_agents_and_mcts'] = load_file(results_dir, 'winrate_matrix_test_agents_and_mcts.csv')
+    results['maxent_nash_test_agents_and_mcts'] = load_file(results_dir, 'maxent_nash_test_agents.csv')
     return results
 
 
 def run(path: str):
-    # TODO: if we ever wanna refactor the things above into this
     def plot_component(checkbox_ticked: bool, title: str, description: str,
                        description_key: str, plot_func: Callable):
         if checkbox_ticked:
@@ -93,15 +99,15 @@ def run(path: str):
                    description_key='description 4',
                    plot_func=partial(plot_winrate_matrix_and_support,
                                      results['winrate_matrix_test_agents'],
-                                     results['maxent_nash_test_agents']))
+                                     results['maxent_nash_mcts']))
 
     plot_component(show_winrate_matrix_mcts,
                    title='# Winrate matrix: MCTS & Test agents',
                    description=descriptions.winrate_matrix_mcts_and_test_agents,
                    description_key='description 5',
                    plot_func=partial(plot_winrate_matrix_mcts_and_test_agents,
-                                     results['winrate_matrix_test_agents'],
-                                     results['maxent_nash_test_agents']))
+                                     results['winrate_matrix_test_agents_and_mcts'],
+                                     results['maxent_nash_test_agents_and_mcts']))
 
 
 def plot_winrate_matrix(ax, winrate_matrix: np.ndarray):
