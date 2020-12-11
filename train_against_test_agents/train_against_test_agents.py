@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import regym
 from regym.environments import Task
-from regym.util import extract_winner, trajectory_reward
+from regym.rl_loops import compute_winrates
 from regym.networks.preprocessing import batch_vector_observation
 from regym.rl_algorithms import AgentHook, load_population_from_path
 from regym.rl_algorithms.agents import build_NeuralNet_Agent
@@ -24,30 +24,40 @@ from regym.util.experiment_parsing import initialize_agents
 from regym.util.experiment_parsing import filter_relevant_configurations
 
 
-def train_against_fixed_agent(task: 'Task', agents: List, test_agents: List['Agent'],
-                              exper_config: Dict, summary_writer: SummaryWriter):
+def train_against_fixed_agent(task: 'Task',
+                              agent: 'Agent',
+                              test_agents: List['Agent'],
+                              base_path: str,
+                              exper_config: Dict,
+                              summary_writer: SummaryWriter):
     for test_agent in test_agents:
-        for agent in agents:
-            logger = logging.getLogger(f'TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {test_agent.name}')
-            logger.info('Started')
+        logger = logging.getLogger(f'TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {test_agent.name}')
+        logger.info('Started')
 
-            base_path = f"{exper_config['experiment_id']}"
-            os.makedirs(base_path, exist_ok=True), trajectory_reward
+        os.makedirs(base_path, exist_ok=True)
 
-            train_to_a_desired_winrate(task, training_agent=agent, opponent=test_agent,
-                  desired_winrate=exper_config['desired_winrate'],
-                  training_episodes=exper_config['training_episodes'],
-                  benchmarking_episodes=exper_config['benchmarking_episodes'],
-                  agent_position=0,   # HACK: THIS IS VERY IMPORTANT
-                  base_path=base_path,
-                  logger=logger,
-                  summary_writer=summary_writer)
+        train_to_a_desired_winrate(
+            task,
+            training_agent=agent,
+            opponent=test_agent,
+            desired_winrate=exper_config['desired_winrate'],
+            training_episodes=exper_config['training_episodes'],
+            benchmarking_episodes=exper_config['benchmarking_episodes'],
+            agent_position=0,   # HACK: THIS IS VERY IMPORTANT
+            num_envs=exper_config['num_envs'],
+            base_path=base_path,
+            logger=logger,
+            summary_writer=summary_writer)
 
 
-def train_to_a_desired_winrate(task: 'Task', training_agent: 'Agent', opponent: 'Agent',
+def train_to_a_desired_winrate(task: 'Task',
+                               training_agent: 'Agent',
+                               opponent: 'Agent',
                                desired_winrate: float,
-                               training_episodes: int, benchmarking_episodes: int,
+                               training_episodes: int,
+                               benchmarking_episodes: int,
                                agent_position: int,
+                               num_envs: int,
                                base_path: str,
                                logger,
                                summary_writer: SummaryWriter):
@@ -64,49 +74,59 @@ def train_to_a_desired_winrate(task: 'Task', training_agent: 'Agent', opponent: 
     completed_iterations, start_time, benchmark_winrate = 0, time.time(), -math.inf
 
     while benchmark_winrate < desired_winrate:
-        logger.info(f'Completed_episodes: {completed_iterations} Training for extra {training_episodes}')
-        trajectories = train_for_given_iterations(task, training_agent, opponent,
-                                                  agent_position,
-                                                  training_episodes,
-                                                  completed_iterations, logger)
+        logger.info(f'Completed_episodes: {task.total_episodes_run}. Training for extra {training_episodes}')
+        trajectories = train_for_given_iterations(
+            task,
+            training_agent,
+            opponent,
+            agent_position,
+            training_episodes,
+            num_envs,
+            logger)
         completed_iterations += len(trajectories)
         winrates_during_training = compute_winrates(trajectories[-benchmarking_episodes:],
                                                     num_agents=task.num_agents)
 
         tolerance = 0.1
         logger.info(f'Winrate during training {winrates_during_training[agent_position]}, desired - tolerance: {desired_winrate - tolerance}')
+        summary_writer.add_scalar('Training/Winrate', winrates_during_training[agent_position], completed_iterations)
         if winrates_during_training[agent_position] >= desired_winrate - tolerance:
             logger.info(f'Proceding to benchmark for {benchmarking_episodes} episodes')
-            benchmark_winrate = benchmark_agent(task, training_agent, opponent,
-                                                agent_position,
-                                                benchmarking_episodes,
-                                                completed_iterations, logger,
-                                                summary_writer)
+            benchmark_winrate = benchmark_agent(
+                task,
+                training_agent,
+                opponent,
+                agent_position,
+                benchmarking_episodes,
+                logger,
+                summary_writer)
 
         del trajectories # Off you go!
 
-        save_trained_policy(training_agent,
-                            save_path=f'{base_path}/{training_agent.name}_{completed_iterations}_iterations.pt',
-                            logger=logger)
+        save_trained_policy(
+            training_agent,
+            save_path=f'{base_path}/{training_agent.name}_{completed_iterations}_iterations.pt',
+            logger=logger)
 
     logger.info('FINISHED training to reach {}. Total duration: {} seconds'.format(desired_winrate, time.time() - start_time))
 
 
-def compute_winrates(trajectories: List, num_agents: int) -> List[float]:
-    winners = list(map(lambda t: extract_winner(t), trajectories))
-    return [winners.count(a_i) / len(winners) for a_i in range(num_agents)]
-
-
-def train_for_given_iterations(task, training_agent: 'Agent', opponent: 'Agent',
-                               agent_position: int, training_episodes: int,
-                               completed_iterations: int,  # TODO Do we need this param?
+def train_for_given_iterations(task,
+                               training_agent: 'Agent',
+                               opponent: 'Agent',
+                               agent_position: int,
+                               training_episodes: int,
+                               num_envs: int,
                                logger) -> List:
     agent_vector = [opponent]
     agent_vector.insert(agent_position, training_agent)
     training_start = time.time()
-    trajectories = task.run_episodes(agent_vector, training=True,
-                                     num_envs=-1,  # Max number of environments
-                                     num_episodes=training_episodes)
+    trajectories = task.run_episodes(agent_vector,
+                                     training=True,
+                                     num_envs=num_envs,  # Max number of environments
+                                     num_episodes=training_episodes,
+                                     show_progress=True,
+                                     summary_writer=summary_writer.log_dir)
     training_duration = time.time() - training_start
     logger.info('Training for {} took {:.2} seconds'.format(
                 training_episodes, training_duration))
@@ -117,7 +137,7 @@ def benchmark_agent(task: Task, agent: 'Agent', opponent: 'Agent',
                     agent_position, benchmarking_episodes,
                     starting_episode: int,
                     logger,
-                    summary_writer: Optional[SummaryWriter]):
+                    summary_writer: Optional[SummaryWriter] = None):
     agent_vector = [opponent]
     agent_vector.insert(agent_position, agent)
     training_start = time.time()
@@ -129,11 +149,11 @@ def benchmark_agent(task: Task, agent: 'Agent', opponent: 'Agent',
                 benchmarking_episodes, benchmarking_time))
 
     # How can we also print this info in a useful way?
-    winrate = len(list(filter(lambda t: extract_winner(t) == agent_position,
+    winrate = len(list(filter(lambda t: t.winner == agent_position,
                               trajectories))) / len(trajectories)
     logger.info(f'Benchmarking winrate {winrate}')
     avg_episode_length = reduce(lambda acc, t: acc + len(t), trajectories, 0) / len(trajectories)
-    avg_episode_reward = reduce(lambda acc, t: acc + trajectory_reward(t, agent_position),
+    avg_episode_reward = reduce(lambda acc, t: acc + t.agent_specific_cumulative_reward(agent_position),
                                 trajectories, 0) / len(trajectories)
     if summary_writer:
         summary_writer.add_scalar('Benchmarking/Winrate', winrate, starting_episode)
@@ -147,11 +167,12 @@ def save_trained_policy(trained_agent, save_path: str, logger):
     torch.save(trained_agent, save_path)
 
 
-def initialize_experiment(experiment_config, agents_config):
+def initialize_experiment(experiment_config, agents_config, args):
     env_name, requested_env_type = experiment_config['environment']
     task = generate_task(env_name, EnvType(requested_env_type))
     agents = initialize_agents(task, agents_config)
-    return task, agents
+    test_agents = load_test_agents(task, args.opponents_path)
+    return task, agents[0], test_agents
 
 
 def load_configs(config_file_path: str):
@@ -163,24 +184,67 @@ def load_configs(config_file_path: str):
     return experiment_config, agents_config
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description='Trains Expert Iteration / Best Response Expert Iteration agents for experiments of paper "On Opponent Modelling in Expert Iteration"')
-    parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment and agents')
-    parser.add_argument('--opponents_path', required=True, help='path to directory containing agents to train against (opponents)')
-    args = parser.parse_args()
+def load_agent_and_update_task(agent_directory_path: str, task) -> 'Agent':
+    if not os.path.isdir(agent_directory_path):
+        raise ValueError(f'Path {agent_directory_path} does not exist')
 
-    multiprocessing.set_start_method('forkserver')
-    exper_config, agents_config = load_configs(args.config)
-    task, agents = initialize_experiment(exper_config, agents_config)
+    all_agent_checkpoints = list(filter(lambda file: file.endswith('.pt'),
+                                        os.listdir(agent_directory_path)))
+    latest_agent = max(
+        all_agent_checkpoints,
+        # Following the convention of {name}_{iteration}_iterations.pt
+        # We sort by the {iterations} number
+        key=(lambda file: int(file.split('_')[-2]))
+    )
+    agent = torch.load(f'{agent_directory_path}/{latest_agent}')
+    task.total_episodes_run = agent.finished_episodes
+    return agent
 
-    test_agents = load_population_from_path(args.opponents_path)
+
+def load_test_agents(task, opponents_path) -> List['Agent']:
+    test_agents = load_population_from_path(opponents_path)
     test_agents = [build_NeuralNet_Agent(task,
                       {'neural_net': t_a.algorithm.model,
                        'pre_processing_fn': batch_vector_observation},
                        f'TestAgent: {t_a.handled_experiences}')
                    for t_a in test_agents]
-    summary_writer = SummaryWriter('Exit-TrainAgainstTestAgents')
-    regym.rl_algorithms.expert_iteration.expert_iteration_loss.summary_writer = summary_writer
+    return test_agents
 
-    train_against_fixed_agent(task, agents, test_agents, exper_config, summary_writer)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Trains Expert Iteration / Best Response Expert Iteration agents for experiments of paper "On Opponent Modelling in Expert Iteration"')
+    parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment and agents')
+    parser.add_argument('--opponents_path', required=True, help='path to directory containing agents to train against (opponents)')
+    args = parser.parse_args()
+
+    # Spawn is required for GPU to be used inside of neural_net_server
+    torch.multiprocessing.set_start_method('spawn')
+
+    logging.basicConfig(level=logging.INFO)
+    top_level_logger = logging.getLogger('BRExIt Opponent Modelling Experiment')
+
+    exper_config, agents_config = load_configs(args.config)
+    task, agent, test_agents = initialize_experiment(exper_config, agents_config, args)
+
+    agent_name = exper_config['algorithms'][0]
+
+    base_path = f"{exper_config['experiment_id']}/{agent_name}"
+
+    # Maybe this should go into initialize_experiment
+    if os.path.exists(base_path) and (os.listdir(base_path) != []):  # Load pre-trained agent, if there is any
+        top_level_logger.info(f'Attempting to load agent from: {base_path}')
+        agent = load_agent_and_update_task(base_path, task)
+        top_level_logger.info(f'Loaded agent, with {agent.finished_episodes} episodes under its belt')
+
+    log_path = f"{exper_config['experiment_id']}_logs/{agent_name}"
+
+    summary_writer = SummaryWriter(log_path)
+    agent.algorithm.summary_writer = summary_writer
+
+    train_against_fixed_agent(
+        task,
+        agent,
+        test_agents,
+        base_path,
+        exper_config,
+        summary_writer)

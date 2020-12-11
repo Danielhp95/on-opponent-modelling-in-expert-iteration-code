@@ -1,3 +1,17 @@
+experiment:
+  algorithms:
+    - expert_iteration_with_apprentice_opponent_modelling_500_GamesPerIter_20_Budget_50_Rollout_3_Epochs
+      #- expert_iteration_debug
+  environment: ['Connect4-v0', 'multiagent-sequential']
+  experiment_id: 'BRExIt_Opponent_Modelling'
+  desired_winrate: 0.8
+  # ideally, a multiple of policy updates. Param :games_per iteration:
+  training_episodes: 400
+  benchmarking_episodes: 100
+  num_envs: -1
+
+
+# --------- Agent hyperparameters ------
 cnn_arch: &cnn_architecture
     phi_arch: 'CNN'
     use_batch_normalization: True
@@ -6,20 +20,22 @@ cnn_arch: &cnn_architecture
     kernel_sizes: [3, 3, 3, 3, 3]
     paddings: [1, 1, 1, 1, 1]
     strides: [1, 1, 1, 1, 1]
-    residual_connections: [(0,1), (1,2), (2,3), (3,4)]
+    residual_connections: [[0,1], [1,2], [2,3], [3,4]]
 
 agents:
-  expert_iteration_no_opponent_modelling:
+  expert_iteration: &expert_iteration_no_opponent_modelling
     <<: *cnn_architecture
     use_agent_modelling: False
+    use_agent_modelling_in_mcts: False
     use_apprentice_in_expert: True
-    games_per_iteration: 1
+    use_cuda: False
+    games_per_iteration: 500
     # Dataset params
     initial_memory_size: 3000
     memory_size_increase_frequency: 50
     end_memory_size: 20000
     # MCTS config
-    mcts_budget: 1
+    mcts_budget: 50
     mcts_rollout_budget: 100
     mcts_exploration_factor: 1.4142
     mcts_use_dirichlet: True
@@ -31,12 +47,21 @@ agents:
     # NN: Feature extractor
     feature_extractor_arch: 'CNN'
 
-experiment:
-  algorithms:
-  - expert_iteration_no_opponent_modelling
-  environment: ['Connect4-v0', 'multiagent-sequential']
-  experiment_id: test_exit_train_against_fixed_agent
-  desired_winrate: 0.7
-  # ideally, a multiple of policy updates. Param :games_per iteration:
-  training_episodes: 1000
-  benchmarking_episodes: 100
+  expert_iteration_debug:
+    <<: *expert_iteration_no_opponent_modelling
+    mcts_budget: 4
+    mcts_rollout_budget: 100
+    use_apprentice_in_expert: True
+    use_dirichlet: False
+    games_per_iteration: 10
+    batch_size: 8
+
+  expert_iteration_with_apprentice_opponent_modelling_500_GamesPerIter_20_Budget_50_Rollout_3_Epochs_64_BatchSize:
+    <<: *expert_iteration_no_opponent_modelling
+    mcts_budget: 20
+    mcts_rollout_budget: 50
+    games_per_iteration: 400
+    num_epochs_per_iteration: 3
+    batch_size: 64
+    use_cuda: True
+    use_agent_modelling: True
