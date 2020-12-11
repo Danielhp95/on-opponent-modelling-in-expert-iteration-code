@@ -84,8 +84,8 @@ def train_to_a_desired_winrate(task: 'Task',
             num_envs,
             logger)
         completed_iterations += len(trajectories)
-        winrates_during_training = compute_winrates(trajectories[-benchmarking_episodes:],
-                                                    num_agents=task.num_agents)
+        winrates_during_training = compute_winrates(trajectories[-benchmarking_episodes:])
+                                                    
 
         tolerance = 0.1
         logger.info(f'Winrate during training {winrates_during_training[agent_position]}, desired - tolerance: {desired_winrate - tolerance}')
