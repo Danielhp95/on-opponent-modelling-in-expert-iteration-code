@@ -125,8 +125,8 @@ def train_for_given_iterations(task,
                                      training=True,
                                      num_envs=num_envs,  # Max number of environments
                                      num_episodes=training_episodes,
-                                     show_progress=True,
-                                     summary_writer=summary_writer.log_dir)
+                                     show_progress=False,
+                                     summary_writer=summary_writer)
     training_duration = time.time() - training_start
     logger.info('Training for {} took {:.2} seconds'.format(
                 training_episodes, training_duration))

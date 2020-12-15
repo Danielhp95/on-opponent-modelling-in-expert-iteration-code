@@ -1,12 +1,13 @@
 experiment:
   algorithms:
-    - expert_iteration_with_apprentice_opponent_modelling_500_GamesPerIter_20_Budget_50_Rollout_3_Epochs
+    #- expert_iteration_with_apprentice_opponent_modelling_500_GamesPerIter_20_Budget_50_Rollout_3_Epochs
+    - expert_iteration_with_apprentice_opponent_modelling_1000_GamesPerIter_20_Budget_50_Rollout_5_Epochs_128_BatchSize
       #- expert_iteration_debug
   environment: ['Connect4-v0', 'multiagent-sequential']
   experiment_id: 'BRExIt_Opponent_Modelling'
   desired_winrate: 0.8
   # ideally, a multiple of policy updates. Param :games_per iteration:
-  training_episodes: 400
+  training_episodes: 1000
   benchmarking_episodes: 100
   num_envs: -1
 
@@ -60,8 +61,18 @@ agents:
     <<: *expert_iteration_no_opponent_modelling
     mcts_budget: 20
     mcts_rollout_budget: 50
-    games_per_iteration: 400
+    games_per_iteration: 500
     num_epochs_per_iteration: 3
     batch_size: 64
-    use_cuda: True
+    use_cuda: False
+    use_agent_modelling: True
+
+  expert_iteration_with_apprentice_opponent_modelling_1000_GamesPerIter_20_Budget_50_Rollout_5_Epochs_128_BatchSize:
+    <<: *expert_iteration_no_opponent_modelling
+    mcts_budget: 20
+    mcts_rollout_budget: 50
+    games_per_iteration: 1000
+    num_epochs_per_iteration: 3
+    batch_size: 128
+    use_cuda: False
     use_agent_modelling: True
