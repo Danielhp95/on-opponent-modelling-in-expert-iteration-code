@@ -172,7 +172,7 @@ def initialize_experiment(experiment_config, agents_config, args):
     task = generate_task(env_name, EnvType(requested_env_type))
     agents = initialize_agents(task, agents_config)
     test_agents = load_test_agents(task, args.opponents_path)
-    return task, agents[0], test_agents
+    return task, agents, test_agents
 
 
 def load_configs(config_file_path: str):
@@ -225,13 +225,14 @@ if __name__ == "__main__":
     top_level_logger = logging.getLogger('BRExIt Opponent Modelling Experiment')
 
     exper_config, agents_config = load_configs(args.config)
-    task, agent, test_agents = initialize_experiment(exper_config, agents_config, args)
+    task, agents, test_agents = initialize_experiment(exper_config, agents_config, args)
 
     if (len(exper_config['algorithms']) > 1) and (args.agent_index is None):
         raise ValueError('More than one agent was specified. Use `agent_index` to select which one to use')
 
-    agent_index = args.agent_index if args.agent_index else 0
+    agent_index = int(args.agent_index) if args.agent_index else 0
     agent_name = exper_config['algorithms'][agent_index]
+    agent = agents[agent_index]
 
     base_path = f"{exper_config['experiment_id']}/{agent_name}"
 

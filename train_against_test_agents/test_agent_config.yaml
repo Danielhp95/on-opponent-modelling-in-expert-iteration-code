@@ -1,15 +1,15 @@
 experiment:
   algorithms:
-    - vanilla_expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
-    - vanilla_expert_iteration_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_124_BatchSize
-    - vanilla_expert_iteration_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
+    - expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
+    - expert_iteration_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize
+    - expert_iteration_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
     #
     - expert_iteration_neural_net_opponent_modelling_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
-    - expert_iteration_neural_net_opponent_modelling_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_124_BatchSize
+    - expert_iteration_neural_net_opponent_modelling_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize
     - expert_iteration_neural_net_opponent_modelling_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
     #
     - expert_iteration_brexit_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
-    - expert_iteration_brexit_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_124_BatchSize
+    - expert_iteration_brexit_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize
     - expert_iteration_brexit_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
     
   environment: ['Connect4-v0', 'multiagent-sequential']
@@ -34,7 +34,7 @@ cnn_arch: &cnn_architecture
 
 agents:
 ######## Vanilla ExIt ################
-  vanilla_expert_iteration: &vanilla_expert_iteration
+  expert_iteration: &vanilla_expert_iteration
     <<: *cnn_architecture
     use_agent_modelling: False
     use_agent_modelling_in_mcts: False
@@ -69,21 +69,21 @@ agents:
     games_per_iteration: 10
     batch_size: 8
 
-  vanilla_expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
+  expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
     <<: *vanilla_expert_iteration
     mcts_budget: 20
     games_per_iteration: 500
     num_epochs_per_iteration: 3
     batch_size: 64
 
-  vanilla_expert_iteration_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
+  expert_iteration_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
     <<: *vanilla_expert_iteration
     mcts_budget: 20
     games_per_iteration: 1000
     num_epochs_per_iteration: 5
     batch_size: 128
 
-  vanilla_expert_iteration_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
+  expert_iteration_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
     <<: *vanilla_expert_iteration
     mcts_budget: 20
     games_per_iteration: 2000
