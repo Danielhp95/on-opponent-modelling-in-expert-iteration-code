@@ -215,6 +215,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Trains Expert Iteration / Best Response Expert Iteration agents for experiments of paper "On Opponent Modelling in Expert Iteration"')
     parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment and agents')
     parser.add_argument('--opponents_path', required=True, help='path to directory containing agents to train against (opponents)')
+    parser.add_argument('--agent_index', required=False, default=None, help='Optional. Index of the agent that will be kept out of all of the agents specified in config file. Useful for batch jobs in SLURM settings')
     args = parser.parse_args()
 
     # Spawn is required for GPU to be used inside of neural_net_server
@@ -226,7 +227,11 @@ if __name__ == "__main__":
     exper_config, agents_config = load_configs(args.config)
     task, agent, test_agents = initialize_experiment(exper_config, agents_config, args)
 
-    agent_name = exper_config['algorithms'][0]
+    if (len(exper_config['algorithms']) > 1) and (args.agent_index is None):
+        raise ValueError('More than one agent was specified. Use `agent_index` to select which one to use')
+
+    agent_index = args.agent_index if args.agent_index else 0
+    agent_name = exper_config['algorithms'][agent_index]
 
     base_path = f"{exper_config['experiment_id']}/{agent_name}"
 

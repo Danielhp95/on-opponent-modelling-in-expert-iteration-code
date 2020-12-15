@@ -1,8 +1,17 @@
 experiment:
   algorithms:
-    #- expert_iteration_with_apprentice_opponent_modelling_500_GamesPerIter_20_Budget_50_Rollout_3_Epochs
-    - expert_iteration_with_apprentice_opponent_modelling_1000_GamesPerIter_20_Budget_50_Rollout_5_Epochs_128_BatchSize
-      #- expert_iteration_debug
+    - vanilla_expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
+    - vanilla_expert_iteration_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_124_BatchSize
+    - vanilla_expert_iteration_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
+    #
+    - expert_iteration_neural_net_opponent_modelling_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
+    - expert_iteration_neural_net_opponent_modelling_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_124_BatchSize
+    - expert_iteration_neural_net_opponent_modelling_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
+    #
+    - expert_iteration_brexit_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
+    - expert_iteration_brexit_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_124_BatchSize
+    - expert_iteration_brexit_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
+    
   environment: ['Connect4-v0', 'multiagent-sequential']
   experiment_id: 'BRExIt_Opponent_Modelling'
   desired_winrate: 0.8
@@ -24,7 +33,8 @@ cnn_arch: &cnn_architecture
     residual_connections: [[0,1], [1,2], [2,3], [3,4]]
 
 agents:
-  expert_iteration: &expert_iteration_no_opponent_modelling
+######## Vanilla ExIt ################
+  vanilla_expert_iteration: &vanilla_expert_iteration
     <<: *cnn_architecture
     use_agent_modelling: False
     use_agent_modelling_in_mcts: False
@@ -33,8 +43,8 @@ agents:
     games_per_iteration: 500
     # Dataset params
     initial_memory_size: 3000
-    memory_size_increase_frequency: 50
-    end_memory_size: 20000
+    memory_size_increase_frequency: 30
+    end_memory_size: 30000
     # MCTS config
     mcts_budget: 50
     mcts_rollout_budget: 100
@@ -49,30 +59,95 @@ agents:
     feature_extractor_arch: 'CNN'
 
   expert_iteration_debug:
-    <<: *expert_iteration_no_opponent_modelling
+    <<: *vanilla_expert_iteration
     mcts_budget: 4
     mcts_rollout_budget: 100
     use_apprentice_in_expert: True
+    use_agent_modelling: True
+    use_agent_modelling_in_mcts: True
     use_dirichlet: False
     games_per_iteration: 10
     batch_size: 8
 
-  expert_iteration_with_apprentice_opponent_modelling_500_GamesPerIter_20_Budget_50_Rollout_3_Epochs_64_BatchSize:
-    <<: *expert_iteration_no_opponent_modelling
+  vanilla_expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
+    <<: *vanilla_expert_iteration
     mcts_budget: 20
-    mcts_rollout_budget: 50
     games_per_iteration: 500
     num_epochs_per_iteration: 3
     batch_size: 64
-    use_cuda: False
-    use_agent_modelling: True
 
-  expert_iteration_with_apprentice_opponent_modelling_1000_GamesPerIter_20_Budget_50_Rollout_5_Epochs_128_BatchSize:
-    <<: *expert_iteration_no_opponent_modelling
+  vanilla_expert_iteration_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
+    <<: *vanilla_expert_iteration
     mcts_budget: 20
-    mcts_rollout_budget: 50
     games_per_iteration: 1000
-    num_epochs_per_iteration: 3
+    num_epochs_per_iteration: 5
     batch_size: 128
-    use_cuda: False
+
+  vanilla_expert_iteration_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
+    <<: *vanilla_expert_iteration
+    mcts_budget: 20
+    games_per_iteration: 2000
+    num_epochs_per_iteration: 8
+    batch_size: 256
+
+######## ExIt with opponent modelling on neural net (ala DPIQN) ################
+  expert_iteration_neural_net_opponent_modelling_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
+    <<: *vanilla_expert_iteration
     use_agent_modelling: True
+    use_agent_modelling_in_mcts: False
+    use_apprentice_in_expert: True
+    mcts_budget: 20
+    games_per_iteration: 500
+    num_epochs_per_iteration: 3
+    batch_size: 64
+
+  expert_iteration_neural_net_opponent_modelling_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
+    <<: *vanilla_expert_iteration
+    use_agent_modelling: True
+    use_agent_modelling_in_mcts: False
+    use_apprentice_in_expert: True
+    mcts_budget: 20
+    games_per_iteration: 1000
+    num_epochs_per_iteration: 5
+    batch_size: 128
+
+  expert_iteration_neural_net_opponent_modelling_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
+    <<: *vanilla_expert_iteration
+    use_agent_modelling: True
+    use_agent_modelling_in_mcts: False
+    use_apprentice_in_expert: True
+    mcts_budget: 20
+    games_per_iteration: 2000
+    num_epochs_per_iteration: 8
+    batch_size: 256
+
+######## ExIt with opponent modelling on neural net AND using true opponent models during search ################
+  expert_iteration_brexit_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
+    <<: *vanilla_expert_iteration
+    use_agent_modelling: True
+    use_agent_modelling_in_mcts: True
+    use_apprentice_in_expert: True
+    mcts_budget: 20
+    games_per_iteration: 500
+    num_epochs_per_iteration: 3
+    batch_size: 64
+
+  expert_iteration_brexit_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
+    <<: *vanilla_expert_iteration
+    use_agent_modelling: True
+    use_agent_modelling_in_mcts: True
+    use_apprentice_in_expert: True
+    mcts_budget: 20
+    games_per_iteration: 1000
+    num_epochs_per_iteration: 5
+    batch_size: 128
+
+  expert_iteration_brexit_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
+    <<: *vanilla_expert_iteration
+    use_agent_modelling: True
+    use_agent_modelling_in_mcts: True
+    use_apprentice_in_expert: True
+    mcts_budget: 20
+    games_per_iteration: 2000
+    num_epochs_per_iteration: 8
+    batch_size: 256
