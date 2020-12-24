@@ -5,7 +5,7 @@ import yaml
 import argparse
 import logging
 import os
-from functools import reduce
+from functools import reduce, partial
 
 import numpy as np
 import gym_connect4
@@ -14,9 +14,11 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 import regym
+from regym.environments.wrappers import FrameStack
 from regym.environments import Task
 from regym.rl_loops import compute_winrates
-from regym.networks.preprocessing import batch_vector_observation
+from regym.networks.preprocessing import (batch_vector_observation,
+                                          keep_last_stack_and_batch_vector_observation)
 from regym.rl_algorithms import AgentHook, load_population_from_path
 from regym.rl_algorithms.agents import build_NeuralNet_Agent
 from regym.environments import generate_task, EnvType
@@ -85,21 +87,20 @@ def train_to_a_desired_winrate(task: 'Task',
             logger)
         completed_iterations += len(trajectories)
         winrates_during_training = compute_winrates(trajectories[-benchmarking_episodes:])
-                                                    
-
         tolerance = 0.1
         logger.info(f'Winrate during training {winrates_during_training[agent_position]}, desired - tolerance: {desired_winrate - tolerance}')
         summary_writer.add_scalar('Training/Winrate', winrates_during_training[agent_position], completed_iterations)
         if winrates_during_training[agent_position] >= desired_winrate - tolerance:
             logger.info(f'Proceding to benchmark for {benchmarking_episodes} episodes')
             benchmark_winrate = benchmark_agent(
-                task,
-                training_agent,
-                opponent,
-                agent_position,
-                benchmarking_episodes,
-                logger,
-                summary_writer)
+                task=task,
+                agent=training_agent,
+                opponent=opponent,
+                agent_position=agent_position,
+                benchmarking_episodes=benchmarking_episodes,
+                starting_episode=task.total_episodes_run,
+                logger=logger,
+                summary_writer=summary_writer)
 
         del trajectories # Off you go!
 
@@ -168,11 +169,27 @@ def save_trained_policy(trained_agent, save_path: str, logger):
 
 
 def initialize_experiment(experiment_config, agents_config, args):
-    env_name, requested_env_type = experiment_config['environment']
-    task = generate_task(env_name, EnvType(requested_env_type))
+    task = create_task_from_config(experiment_config['environment'])
     agents = initialize_agents(task, agents_config)
     test_agents = load_test_agents(task, args.opponents_path)
     return task, agents, test_agents
+
+def create_task_from_config(environment_config):
+    wrappers = create_wrappers(environment_config)
+    task = generate_task(environment_config['name'],
+                         EnvType(environment_config['env_type']),
+                         wrappers=wrappers)
+    return task
+
+def create_wrappers(environment_config):
+    wrappers = []
+    if 'frame_stack' in environment_config:
+        wrappers.append(partial(
+            FrameStack,
+            num_stack=int(environment_config['frame_stack'])
+            )
+        )
+    return wrappers
 
 
 def load_configs(config_file_path: str):
@@ -205,7 +222,8 @@ def load_test_agents(task, opponents_path) -> List['Agent']:
     test_agents = load_population_from_path(opponents_path)
     test_agents = [build_NeuralNet_Agent(task,
                       {'neural_net': t_a.algorithm.model,
-                       'pre_processing_fn': batch_vector_observation},
+                       #'pre_processing_fn': batch_vector_observation},
+                       'state_preprocess_fn': keep_last_stack_and_batch_vector_observation},
                        f'TestAgent: {t_a.handled_experiences}')
                    for t_a in test_agents]
     return test_agents
