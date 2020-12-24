@@ -11,14 +11,16 @@ experiment:
     - expert_iteration_brexit_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize
     - expert_iteration_brexit_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize
     - expert_iteration_brexit_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize
-    
-  environment: ['Connect4-v0', 'multiagent-sequential']
+  num_envs: 1
+  environment:
+    name: 'Connect4-v0' 
+    env_type: 'multiagent-sequential'
+    frame_stack: 2
   experiment_id: 'BRExIt_Opponent_Modelling'
-  desired_winrate: 0.8
+  desired_winrate: 0.0
   # ideally, a multiple of policy updates. Param :games_per iteration:
-  training_episodes: 1000
-  benchmarking_episodes: 100
-  num_envs: -1
+  training_episodes: 1
+  benchmarking_episodes: 1
 
 
 # --------- Agent hyperparameters ------
@@ -26,7 +28,8 @@ cnn_arch: &cnn_architecture
     phi_arch: 'CNN'
     use_batch_normalization: True
     preprocessed_input_dimensions: [7, 6]
-    channels: [3, 10, 20, 20, 20, 1]
+    # Channels are: 3 (empty, p1 pieces, p2 pieces) * 4 stacked frames
+    channels: [6, 15, 20, 20, 20, 1]
     kernel_sizes: [3, 3, 3, 3, 3]
     paddings: [1, 1, 1, 1, 1]
     strides: [1, 1, 1, 1, 1]
@@ -37,8 +40,9 @@ agents:
   expert_iteration: &vanilla_expert_iteration
     <<: *cnn_architecture
     use_agent_modelling: False
-    use_agent_modelling_in_mcts: False
+    use_true_agent_models_in_mcts: False
     use_apprentice_in_expert: True
+    use_learnt_opponent_models_in_mcts: False
     use_cuda: False
     games_per_iteration: 500
     # Dataset params
@@ -57,16 +61,21 @@ agents:
     learning_rate: 1.0e-3
     # NN: Feature extractor
     feature_extractor_arch: 'CNN'
+    post_feature_extractor_arch: 'MLP'
+    # We want to batch the stacked observations into different channels
+    state_preprocessing_fn: 'turn_into_single_element_batch_and_flatten_last_dim'
+    server_state_preprocessing_fn: 'flatten_last_dim_and_batch_vector_observation'
 
   expert_iteration_debug:
     <<: *vanilla_expert_iteration
-    mcts_budget: 4
+    mcts_budget: 1
     mcts_rollout_budget: 100
     use_apprentice_in_expert: True
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: True
+    use_true_agent_models_in_mcts: True
+    use_learnt_opponent_models: False
     use_dirichlet: False
-    games_per_iteration: 10
+    games_per_iteration: 1
     batch_size: 8
 
   expert_iteration_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
@@ -94,7 +103,7 @@ agents:
   expert_iteration_neural_net_opponent_modelling_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
     <<: *vanilla_expert_iteration
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: False
+    use_true_agent_models_in_mcts: False
     use_apprentice_in_expert: True
     mcts_budget: 20
     games_per_iteration: 500
@@ -104,7 +113,7 @@ agents:
   expert_iteration_neural_net_opponent_modelling_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
     <<: *vanilla_expert_iteration
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: False
+    use_true_agent_models_in_mcts: False
     use_apprentice_in_expert: True
     mcts_budget: 20
     games_per_iteration: 1000
@@ -114,7 +123,7 @@ agents:
   expert_iteration_neural_net_opponent_modelling_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
     <<: *vanilla_expert_iteration
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: False
+    use_true_agent_models_in_mcts: False
     use_apprentice_in_expert: True
     mcts_budget: 20
     games_per_iteration: 2000
@@ -125,7 +134,7 @@ agents:
   expert_iteration_brexit_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_64_BatchSize:
     <<: *vanilla_expert_iteration
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: True
+    use_true_agent_models_in_mcts: True
     use_apprentice_in_expert: True
     mcts_budget: 20
     games_per_iteration: 500
@@ -135,7 +144,7 @@ agents:
   expert_iteration_brexit_1000_GamesPerGeneration_20_MCTSBudget_NoRollout_5_epochs_128_BatchSize:
     <<: *vanilla_expert_iteration
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: True
+    use_true_agent_models_in_mcts: True
     use_apprentice_in_expert: True
     mcts_budget: 20
     games_per_iteration: 1000
@@ -145,7 +154,7 @@ agents:
   expert_iteration_brexit_2000_GamesPerGeneration_20_MCTSBudget_NoRollout_8_epochs_256_BatchSize:
     <<: *vanilla_expert_iteration
     use_agent_modelling: True
-    use_agent_modelling_in_mcts: True
+    use_true_agent_models_in_mcts: True
     use_apprentice_in_expert: True
     mcts_budget: 20
     games_per_iteration: 2000
