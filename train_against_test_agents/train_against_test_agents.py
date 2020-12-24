@@ -30,10 +30,11 @@ def train_against_fixed_agent(task: 'Task',
                               agent: 'Agent',
                               test_agents: List['Agent'],
                               base_path: str,
+                              run_id: int,
                               exper_config: Dict,
                               summary_writer: SummaryWriter):
     for test_agent in test_agents:
-        logger = logging.getLogger(f'TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {test_agent.name}')
+        logger = logging.getLogger(f'Run: {run_id}. TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {test_agent.name}')
         logger.info('Started')
 
         os.makedirs(base_path, exist_ok=True)
@@ -48,6 +49,7 @@ def train_against_fixed_agent(task: 'Task',
             agent_position=0,   # HACK: THIS IS VERY IMPORTANT
             num_envs=exper_config['num_envs'],
             base_path=base_path,
+            run_id=run_id,
             logger=logger,
             summary_writer=summary_writer)
 
@@ -61,6 +63,7 @@ def train_to_a_desired_winrate(task: 'Task',
                                agent_position: int,
                                num_envs: int,
                                base_path: str,
+                               run_id: int,
                                logger,
                                summary_writer: SummaryWriter):
     """
@@ -76,7 +79,7 @@ def train_to_a_desired_winrate(task: 'Task',
     completed_iterations, start_time, benchmark_winrate = 0, time.time(), -math.inf
 
     while benchmark_winrate < desired_winrate:
-        logger.info(f'Completed_episodes: {task.total_episodes_run}. Training for extra {training_episodes}')
+        logger.info(f'Run: {run_id}. Completed_episodes: {task.total_episodes_run}. Training for extra {training_episodes}')
         trajectories = train_for_given_iterations(
             task,
             training_agent,
@@ -234,6 +237,8 @@ if __name__ == "__main__":
     parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment and agents')
     parser.add_argument('--opponents_path', required=True, help='path to directory containing agents to train against (opponents)')
     parser.add_argument('--agent_index', required=False, default=None, help='Optional. Index of the agent that will be kept out of all of the agents specified in config file. Useful for batch jobs in SLURM settings')
+    parser.add_argument('--run_id', required=True,
+                        help='Identifier for the single_run that will be run. Ignoring number of runs in config file.')
     args = parser.parse_args()
 
     # Spawn is required for GPU to be used inside of neural_net_server
@@ -252,7 +257,7 @@ if __name__ == "__main__":
     agent_name = exper_config['algorithms'][agent_index]
     agent = agents[agent_index]
 
-    base_path = f"{exper_config['experiment_id']}/{agent_name}"
+    base_path = f"{exper_config['experiment_id']}/run-{args.run_id}/{agent_name}"
 
     # Maybe this should go into initialize_experiment
     if os.path.exists(base_path) and (os.listdir(base_path) != []):  # Load pre-trained agent, if there is any
@@ -260,7 +265,7 @@ if __name__ == "__main__":
         agent = load_agent_and_update_task(base_path, task)
         top_level_logger.info(f'Loaded agent, with {agent.finished_episodes} episodes under its belt')
 
-    log_path = f"{exper_config['experiment_id']}_logs/{agent_name}"
+    log_path = f"{exper_config['experiment_id']}_logs/run-{args.run_id}/{agent_name}"
 
     summary_writer = SummaryWriter(log_path)
     agent.algorithm.summary_writer = summary_writer
@@ -270,5 +275,7 @@ if __name__ == "__main__":
         agent,
         test_agents,
         base_path,
+        args.run_id,
         exper_config,
-        summary_writer)
+        summary_writer
+    )
