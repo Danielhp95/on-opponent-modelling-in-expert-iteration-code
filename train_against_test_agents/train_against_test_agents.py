@@ -1,4 +1,5 @@
-from typing import List, Dict, Optional
+from typing import List, Tuple, Dict, Optional
+from copy import deepcopy
 import math
 import time
 import yaml
@@ -18,7 +19,8 @@ from regym.environments.wrappers import FrameStack
 from regym.environments import Task
 from regym.rl_loops import compute_winrates
 from regym.networks.preprocessing import (batch_vector_observation,
-                                          keep_last_stack_and_batch_vector_observation)
+                                          keep_last_stack_and_batch_vector_observation,
+                                          flatten_last_dim_and_batch_vector_observation)
 from regym.rl_algorithms import AgentHook, load_population_from_path
 from regym.rl_algorithms.agents import build_NeuralNet_Agent
 from regym.environments import generate_task, EnvType
@@ -93,17 +95,17 @@ def train_to_a_desired_winrate(task: 'Task',
         tolerance = 0.1
         logger.info(f'Winrate during training {winrates_during_training[agent_position]}, desired - tolerance: {desired_winrate - tolerance}')
         summary_writer.add_scalar('Training/Winrate', winrates_during_training[agent_position], completed_iterations)
-        if winrates_during_training[agent_position] >= desired_winrate - tolerance:
-            logger.info(f'Proceding to benchmark for {benchmarking_episodes} episodes')
-            benchmark_winrate = benchmark_agent(
-                task=task,
-                agent=training_agent,
-                opponent=opponent,
-                agent_position=agent_position,
-                benchmarking_episodes=benchmarking_episodes,
-                starting_episode=task.total_episodes_run,
-                logger=logger,
-                summary_writer=summary_writer)
+
+        logger.info(f'Proceding to benchmark for {benchmarking_episodes} episodes')
+        benchmark_winrate = benchmark_all_agent_variations(
+            task=task,
+            agent=training_agent,
+            opponent=opponent,
+            agent_position=agent_position,
+            benchmarking_episodes=benchmarking_episodes,
+            starting_episode=task.total_episodes_run,
+            logger=logger,
+            summary_writer=summary_writer)
 
         del trajectories # Off you go!
 
@@ -137,11 +139,72 @@ def train_for_given_iterations(task,
     return trajectories
 
 
-def benchmark_agent(task: Task, agent: 'Agent', opponent: 'Agent',
-                    agent_position, benchmarking_episodes,
-                    starting_episode: int,
-                    logger,
-                    summary_writer: Optional[SummaryWriter] = None):
+def benchmark_all_agent_variations(task: Task, agent: 'Agent', opponent: 'Agent',
+                                   agent_position, benchmarking_episodes,
+                                   starting_episode: int,
+                                   logger,
+                                   summary_writer: Optional[SummaryWriter] = None) -> float:
+    '''
+    Benchmarks Expert Iteration :param: agent, and its variations. These are:
+        - Apprentice only agent: Uses apprentice (neural network) to select actions
+                           instead of search.
+        - Learnt opponent models agent: If :param: agent uses true opponent
+                                        models during training, it benchmarks
+                                        using learnt opponent models, embedded
+                                        in the apprentice neural net.
+
+    :returns: Winrate of apprentice only version of :param: agent against
+              :param: opponent
+    '''
+    #
+    # Apprentice only
+    #
+    apprentice_nn_agent = build_NeuralNet_Agent(
+        task,
+        {'neural_net': agent.apprentice,
+         'state_preprocess_fn': flatten_last_dim_and_batch_vector_observation},
+         f'Apprentice_nn_agent'
+    )
+
+    # If the agent is using
+    if agent.use_true_agent_models_in_mcts and agent.use_agent_modelling:
+        learnt_opponent_models_agent = deepcopy(agent)
+        learnt_opponent_models_agent.use_learnt_opponent_models_in_mcts = True
+
+        # Compute winrates
+        (learnt_opponent_models_winrate,
+         learnt_opponent_models_avg_episode_length) = benchmark_single_agent(
+            agent=learnt_opponent_models_agent,
+            task=task, opponent=opponent,
+            agent_position=agent_position,
+            starting_episode=starting_episode,
+            benchmarking_episodes=benchmarking_episodes,
+            logger=logger,
+            caption='Learnt_opponent_models_in_MCTS',
+            summary_writer=summary_writer
+        )
+
+    apprentice_nn_winrate, apprentice_nn_avg_episode_length = benchmark_single_agent(
+        agent=apprentice_nn_agent,
+        task=task, opponent=opponent,
+        agent_position=agent_position,
+        starting_episode=starting_episode,
+        benchmarking_episodes=benchmarking_episodes,
+        logger=logger,
+        caption='Apprentice_only',
+        summary_writer=summary_writer
+    )
+
+    return apprentice_nn_winrate
+
+
+def benchmark_single_agent(task: Task,
+                           agent: 'Agent', opponent: 'Agent',
+                           agent_position: int, benchmarking_episodes: int,
+                           starting_episode: int,
+                           caption: str,
+                           logger,
+                           summary_writer) -> Tuple[float, float]:
     agent_vector = [opponent]
     agent_vector.insert(agent_position, agent)
     training_start = time.time()
@@ -149,21 +212,19 @@ def benchmark_agent(task: Task, agent: 'Agent', opponent: 'Agent',
                                      num_envs=-1,  # Max number of environments
                                      num_episodes=benchmarking_episodes)
     benchmarking_time = time.time() - training_start
-    logger.info('Benchmarking for {} took {:.2} seconds'.format(
-                benchmarking_episodes, benchmarking_time))
+    logger.info('Benchmarking for {} episodes for {} took {:.2} seconds'.format(
+                benchmarking_episodes, caption, benchmarking_time))
 
     # How can we also print this info in a useful way?
     winrate = len(list(filter(lambda t: t.winner == agent_position,
                               trajectories))) / len(trajectories)
-    logger.info(f'Benchmarking winrate {winrate}')
+    logger.info(f'Benchmarking winrate of {caption}: {winrate}')
     avg_episode_length = reduce(lambda acc, t: acc + len(t), trajectories, 0) / len(trajectories)
-    avg_episode_reward = reduce(lambda acc, t: acc + t.agent_specific_cumulative_reward(agent_position),
-                                trajectories, 0) / len(trajectories)
+
     if summary_writer:
-        summary_writer.add_scalar('Benchmarking/Winrate', winrate, starting_episode)
-        summary_writer.add_scalar('Benchmarking/Average_episode_length', avg_episode_length, starting_episode)
-        summary_writer.add_scalar('Benchmarking/Average_episode_reward', avg_episode_reward, starting_episode)
-    return winrate
+        summary_writer.add_scalar(f'Benchmarking/Winrate_{caption}', winrate, starting_episode)
+        summary_writer.add_scalar(f'Benchmarking/Average_episode_length_{caption}', avg_episode_length, starting_episode)
+    return winrate, avg_episode_length
 
 
 def save_trained_policy(trained_agent, save_path: str, logger):
