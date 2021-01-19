@@ -130,9 +130,7 @@ def train_for_given_iterations(task,
     trajectories = task.run_episodes(agent_vector,
                                      training=True,
                                      num_envs=num_envs,  # Max number of environments
-                                     num_episodes=training_episodes,
-                                     show_progress=False,
-                                     summary_writer=summary_writer)
+                                     num_episodes=training_episodes)
     training_duration = time.time() - training_start
     logger.info('Training for {} took {:.2} seconds'.format(
                 training_episodes, training_duration))
