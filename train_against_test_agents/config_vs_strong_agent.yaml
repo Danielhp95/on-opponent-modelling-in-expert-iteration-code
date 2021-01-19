@@ -59,9 +59,13 @@ agents:
     # NN: Feature extractor
     feature_extractor_arch: 'CNN'
     post_feature_extractor_arch: 'MLP'
-    post_feature_extractor_policy_inference_hidden_units: [64, 64, 64, 64]
-    post_feature_extractor_policy_inference_hidden_units: [64, 64, 64]
-    post_feature_extractor_actor_critic_hidden_units: [64, 64, 64]
+    # If opponent modelling is NOT used
+    post_feature_extractor_hidden_units: [64, 64, 64, 50]
+    # If opponent mdoelling is used
+    post_feature_extractor_policy_inference_hidden_units: [64, 64]
+    post_feature_extractor_actor_critic_hidden_units: [64, 64]
+    critic_gate_fn: 'tanh'
+    ##
     # We want to batch the stacked observations into different channels
     state_preprocessing_fn: 'turn_into_single_element_batch_and_flatten_last_dim'
     server_state_preprocessing_fn: 'flatten_last_dim_and_batch_vector_observation'
