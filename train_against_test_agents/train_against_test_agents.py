@@ -320,13 +320,13 @@ def log_winrates_during_benchmark(true_models_winrate: Optional[float],
     Logs in :param logger, :param: summary_writer and in files at
     :param: save_path the :param: winrates previously computed
     '''
-    if true_models_winrate:
+    if true_models_winrate is not None:
         log_winrate_metric(true_models_winrate, elapsed_episodes, handled_experiences, 'true_opponent_model', f'{save_path}/true_opponent_model.csv', logger, summary_writer)
-    if learnt_opponent_model_winrate:
-        log_winrate_metric(learnt_opponent_model_winrate, elapsed_episodes, handled_experiences, 'learnt_opponent_model', f'{save_path}/learnt_opponent_model_winrate.csv', logger, summary_writer)
-    if vanilla_exit_winrate:
+    if learnt_opponent_model_winrate is not None:
+        log_winrate_metric(learnt_opponent_model_winrate, elapsed_episodes, handled_experiences, 'learnt_opponent_model', f'{save_path}/learnt_opponent_model.csv', logger, summary_writer)
+    if vanilla_exit_winrate is not None:
         log_winrate_metric(vanilla_exit_winrate, elapsed_episodes, handled_experiences, 'vanilla_exit', f'{save_path}/vanilla_exit.csv', logger, summary_writer)
-    if apprentice_only_winrate:
+    if apprentice_only_winrate is not None:
         log_winrate_metric(apprentice_only_winrate, elapsed_episodes, handled_experiences, 'apprentice_only', f'{save_path}/apprentice_only.csv', logger, summary_writer)
 
 
