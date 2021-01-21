@@ -49,16 +49,6 @@ Each winrates/*.csv file features the following columns:
     'elapsed_episodes', 'handled_experiences', 'winrate'
 '''
 
-class AgentType(Enum):
-
-    VANILLA_EXIT = 0
-    VANILLA_EXIT_OPPONENT_MODELLING = 1
-    BREXIT_LEARNT_MODELS = 2
-    BREXIT_TRUE_MODELS = 3
-
-    def __init__(self, agent: 'ExpertIterationAgent'):
-        pass
-
 
 def train_against_fixed_agent(task: 'Task',
                               agent: 'Agent',
