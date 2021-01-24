@@ -32,14 +32,14 @@ from regym.util.experiment_parsing import filter_relevant_configurations
 Creates the following directory structure:
 
 experiment_id/
-    run_id/
+    run-id/
         agent_name/
             tensorboard_logs (many files)
             winrates/
                 apprentice_only.csv                 (always present)
                 vanilla_exit.csv                    (always present)
                 true_opponent_model.csv            (if applicable)
-                learnt_opponent_model_winrate.csv  (if applicable)
+                learnt_opponent_model.csv  (if applicable)
 
 This script can be called multiple times with different --run_id and agent_index
 flags to populate the same `experiment_id/` directory, with different `run_id/` and
@@ -93,17 +93,22 @@ def create_directory_structure(base_path: str, agent: 'Agent'):
     os.makedirs(winrates_path, exist_ok=True)
 
     # Apprentice_only and vanilla_exit are necessary
-    if not os.path.isfile(f'{winrates_path}/apprentice_only.csv'): open(f'{winrates_path}/apprentice_only.csv', 'w')
-    if not os.path.isfile(f'{winrates_path}/vanilla_exit.csv'): open(f'{winrates_path}/vanilla_exit.csv', 'w')
+    if not os.path.isfile(f'{winrates_path}/apprentice_only.csv'): create_empty_csv_file_with_headers(f'{winrates_path}/apprentice_only.csv')
+    if not os.path.isfile(f'{winrates_path}/vanilla_exit.csv'): create_empty_csv_file_with_headers(f'{winrates_path}/vanilla_exit.csv')
 
     # Proper BRExIt, the agent uses true opponent models and agent modelling
     if agent.use_true_agent_models_in_mcts and agent.use_agent_modelling:
-        if not os.path.isfile(f'{winrates_path}/true_opponent_model.csv'): open(f'{winrates_path}/true_opponent_model.csv', 'w')  # This creates a file
-        if not os.path.isfile(f'{winrates_path}/learnt_opponent_model.csv'): open(f'{winrates_path}/learnt_opponent_model.csv', 'w')  # This creates a file
+        if not os.path.isfile(f'{winrates_path}/true_opponent_model.csv'): create_empty_csv_file_with_headers(f'{winrates_path}/true_opponent_model.csv')
+        if not os.path.isfile(f'{winrates_path}/learnt_opponent_model.csv'): create_empty_csv_file_with_headers(f'{winrates_path}/learnt_opponent_model.csv')
 
     # Soft BRExIt, only opponent models are used
     if agent.use_learnt_opponent_models_in_mcts and agent.use_agent_modelling:
-        if not os.path.isfile(f'{winrates_path}/learnt_opponent_model.csv'): open(f'{winrates_path}/learnt_opponent_model.csv', 'w')  # This creates a file
+        if not os.path.isfile(f'{winrates_path}/learnt_opponent_model.csv'): create_empty_csv_file_with_headers(f'{winrates_path}/learnt_opponent_model.csv')
+
+
+def create_empty_csv_file_with_headers(file_path):
+    with open(file_path, 'a') as f:
+        f.write('elapsed_episodes,handled_experiences,winrate\n')
 
 
 def train_to_a_desired_winrate(task: 'Task',
