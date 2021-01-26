@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Dict, List
 import os
 import sys
 from functools import partial
@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+import pandas as pd
 
 import descriptions
 
@@ -46,7 +47,7 @@ def load_results(results_dir: str):
     return results
 
 
-def run(path: str):
+def run(path: str, winrates_path: str):
     def plot_component(checkbox_ticked: bool, title: str, description: str,
                        description_key: str, plot_func: Callable):
         if checkbox_ticked:
@@ -70,44 +71,150 @@ def run(path: str):
     show_winrate_matrix_mcts = st.sidebar.checkbox('Winrate matrix for MCTS agents', True)
     st.sidebar.markdown('Combined MCTS & Test agents')
     show_winrate_matrix_mcts_and_test_agents = st.sidebar.checkbox('Winrate matrix MCTS & Test agents', True)
+    st.sidebar.markdown('Training time till apprentice convergence.')
 
-    plot_component(show_winrate_matrix_test_agents,
-                   title='# Winrate matrix: Test agents',
-                   description=descriptions.winrate_matrix_test_agents,
-                   description_key='description 1',
-                   plot_func=partial(plot_winrate_matrix_and_support,
-                                     results['winrate_matrix_test_agents'],
-                                     results['maxent_nash_test_agents']))
+    winrate_directory = st.sidebar.text_input('Select results directory', winrates_path)
+    show_convergence_times = st.sidebar.checkbox('Convergence times', True)
+    winrate_threshold = st.sidebar.slider(label='Winrate threshold for convergence',
+                                          min_value=0., max_value=1., step=0.01, value=0.7)
 
-    plot_component(show_nash_averaging_evolution_test_agents,
-                   title='# Evolution of Nash averaging: Test agents',
-                   description=descriptions.nash_averaging_evolutions_test_agents,
-                   description_key='description 2',
-                   plot_func=partial(plot_nash_averaging_evolution_test_agents,
-                                     results['evolution_nash_averaging_test_agents']))
+    #plot_component(show_winrate_matrix_test_agents,
+    #               title='# Winrate matrix: Test agents',
+    #               description=descriptions.winrate_matrix_test_agents,
+    #               description_key='description 1',
+    #               plot_func=partial(plot_winrate_matrix_and_support,
+    #                                 results['winrate_matrix_test_agents'],
+    #                                 results['maxent_nash_test_agents']))
 
-    plot_component(show_plot_mcts_equivalent_test_agents,
-                   title='# Plot: MCTS equivalent strength for Test agents',
-                   description=descriptions.mcts_equivalent_strength_test_agents,
-                   description_key='description 3',
-                   plot_func=partial(plot_mcts_equivalent_strength,
-                                     results['mcts_equivalent_strength_test_agents']))
+    #plot_component(show_nash_averaging_evolution_test_agents,
+    #               title='# Evolution of Nash averaging: Test agents',
+    #               description=descriptions.nash_averaging_evolutions_test_agents,
+    #               description_key='description 2',
+    #               plot_func=partial(plot_nash_averaging_evolution_test_agents,
+    #                                 results['evolution_nash_averaging_test_agents']))
 
-    plot_component(show_winrate_matrix_mcts,
-                   title='# Winrate matrix: MCTS agents',
-                   description=descriptions.winrate_matrix_mcts_agents,
-                   description_key='description 4',
-                   plot_func=partial(plot_winrate_matrix_and_support,
-                                     results['winrate_matrix_test_agents'],
-                                     results['maxent_nash_mcts']))
+    #plot_component(show_plot_mcts_equivalent_test_agents,
+    #               title='# Plot: MCTS equivalent strength for Test agents',
+    #               description=descriptions.mcts_equivalent_strength_test_agents,
+    #               description_key='description 3',
+    #               plot_func=partial(plot_mcts_equivalent_strength,
+    #                                 results['mcts_equivalent_strength_test_agents']))
 
-    plot_component(show_winrate_matrix_mcts,
-                   title='# Winrate matrix: MCTS & Test agents',
-                   description=descriptions.winrate_matrix_mcts_and_test_agents,
-                   description_key='description 5',
-                   plot_func=partial(plot_winrate_matrix_mcts_and_test_agents,
-                                     results['winrate_matrix_test_agents_and_mcts'],
-                                     results['maxent_nash_test_agents_and_mcts']))
+    #plot_component(show_winrate_matrix_mcts,
+    #               title='# Winrate matrix: MCTS agents',
+    #               description=descriptions.winrate_matrix_mcts_agents,
+    #               description_key='description 4',
+    #               plot_func=partial(plot_winrate_matrix_and_support,
+    #                                 results['winrate_matrix_test_agents'],
+    #                                 results['maxent_nash_mcts']))
+
+    #plot_component(show_winrate_matrix_mcts,
+    #               title='# Winrate matrix: MCTS & Test agents',
+    #               description=descriptions.winrate_matrix_mcts_and_test_agents,
+    #               description_key='description 5',
+    #               plot_func=partial(plot_winrate_matrix_mcts_and_test_agents,
+    #                                 results['winrate_matrix_test_agents_and_mcts'],
+    #                                 results['maxent_nash_test_agents_and_mcts']))
+
+    plot_component(show_convergence_times,
+                   title='# Box and whiskers plot: Apprentice convergence',
+                   description=descriptions.apprentice_convergence,
+                   description_key='description 6',
+                   plot_func=partial(plot_apprentice_convergence_times,
+                                     winrate_threshold,
+                                     winrate_directory))
+
+
+
+def plot_apprentice_convergence_times(winrate_threshold: float, winrates_path: str):
+    # TODO
+    # Box and whiskers:
+    # Y: elapsed_episodes or handled_experiences
+    # X: Groups Of test agent, each containing all agent variations.
+
+    fig, ax = plt.subplots(1, 1)
+
+    experiment_dir = './test_data/test_experiment'
+    parsed_winrates_df = create_algorithm_ablation_winrate_df(winrates_path)
+
+    # For each algorithm on each run, on each ablation:
+    # find first row (if existing!) where winrate reaches :param: winrate_threshold
+
+    filtered_winrates = parsed_winrates_df.groupby(
+        ['algorithm', 'run_id', 'ablation']
+    ).apply(
+        partial(get_first_value_above_threshold, threshold=winrate_threshold)
+    ).dropna()
+
+    sns.boxplot(x='ablation', y='elapsed_episodes', hue='algorithm',
+                data=filtered_winrates, ax=ax)
+    fig.legend(loc='upper center')
+    st.pyplot(fig)
+
+
+def get_first_value_above_threshold(d: pd.DataFrame, threshold: float):
+    filtered_values = d.loc[d['winrate'] >= threshold]
+    if len(filtered_values) > 0: return filtered_values.iloc[0]
+    else: return None
+
+
+def create_algorithm_ablation_winrate_df(path: str) -> pd.DataFrame:
+    # TODO, rename
+    ''''
+    Creates a dataframe with following structure (columns):
+    'algorithm', 'run_id', **ablation
+
+    experiment_id/
+        run-id/
+            agent_name/
+                tensorboard_logs (many files)
+                winrates/
+                    apprentice_only.csv        (always present)
+                    vanilla_exit.csv           (always present)
+                    true_opponent_model.csv    (if applicable)
+                    learnt_opponent_model.csv  (if applicable)
+
+    Assumptions:
+        - Each run-id features the same 'agent_name's
+          (i.e all runs have run the same algorithms)
+        - All 'agent_names' have the same number of winrates
+        - There is a `run-0` directory from which initial data is parsed
+
+    '''
+    run_0_path = f'{path}/run-0/'
+    algorithm_names = os.listdir(run_0_path)
+    return pd.concat(
+        [create_single_algorithm_dataframe(path, algorithm)
+         for algorithm in algorithm_names]
+    )
+
+
+def create_single_algorithm_dataframe(path: str, algorithm: str) -> pd.DataFrame:
+    algorithm_winrate_types = [csv_file.split('.')[0]  # Remove file extension
+                               for csv_file in os.listdir(f'{path}/run-0/{algorithm}/winrates/')]
+    winrate_data_frames = []
+    # get all the winrates for one run
+    for winrate_type in algorithm_winrate_types:
+        run_dfs = [
+            parse_single_algorithm_and_run_df_from_path(
+                path, algorithm, run, winrate_type)
+            for run in os.listdir(path) if 'run-' in run
+        ]
+        run_df = pd.concat(run_dfs)
+        winrate_data_frames.append(run_df)
+    algorithm_df = pd.concat(winrate_data_frames)
+    algorithm_df['algorithm'] = algorithm
+    return algorithm_df
+
+
+def parse_single_algorithm_and_run_df_from_path(path: str,
+                                                algorithm: str,
+                                                run: str,
+                                                winrate_type: str) -> pd.DataFrame:
+    df = pd.read_csv(f'{path}/{run}/{algorithm}/winrates/{winrate_type}.csv')
+    df['ablation'] = winrate_type
+    df['run_id'] = run
+    return df
 
 
 def plot_winrate_matrix(ax, winrate_matrix: np.ndarray):
@@ -130,7 +237,7 @@ def plot_winrate_matrix_and_support(winrate_matrix: np.ndarray, nash_support: np
     plt.tight_layout()
     plt.subplots_adjust(wspace=0, hspace=0)
 
-    st.pyplot()
+    st.pyplot(fig)
 
 
 def plot_nash_support(ax, nash: np.ndarray,
@@ -175,7 +282,7 @@ def plot_nash_averaging_evolution_test_agents(evolution_nash_averaging_test_agen
     ax.set_ylabel(ylabel='benchmarking round', fontdict={'fontsize': 20})
     ax.set_title(label='Progression of Nash equilibrium during training', fontdict={'fontsize': 20})
 
-    st.pyplot()
+    st.pyplot(fig)
 
 
 def plot_mcts_equivalent_strength(mcts_equivalent_strength: np.ndarray):
@@ -183,14 +290,15 @@ def plot_mcts_equivalent_strength(mcts_equivalent_strength: np.ndarray):
     test_agent_processed_timesteps = [int(x) for x in test_agent_processed_timesteps]
     mcts_equivalent_strengths = mcts_equivalent_strength[:, 1]
 
+    fig, ax = plt.subplots(1, 1)
     ax = sns.lineplot(test_agent_processed_timesteps, mcts_equivalent_strengths,
-                      dashes=True, marker='o')
+                      dashes=True, marker='o', ax=ax)
     ax.set_xticks(test_agent_processed_timesteps)
     ax.set_xticklabels(test_agent_processed_timesteps, rotation=90, ha='center')
     ax.set_title('MCTS equivalent strength for Test agents')
     ax.set_xlabel('Test agent processed timesteps')
     ax.set_ylabel('MCTS budget')
-    st.pyplot()
+    st.pyplot(fig)
 
 
 def plot_winrate_matrix_mcts_and_test_agents(winrate_matrix: np.ndarray, nash_support: np.ndarray):
@@ -202,7 +310,7 @@ def plot_winrate_matrix_mcts_and_test_agents(winrate_matrix: np.ndarray, nash_su
     plt.tight_layout()
     plt.subplots_adjust(wspace=0, hspace=0)
 
-    st.pyplot()
+    st.pyplot(fig)
 
 
 def add_population_delimiting_lines(axes, length, number_populations=2):
@@ -217,6 +325,7 @@ def add_population_delimiting_lines(axes, length, number_populations=2):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2: raise ValueError('Please specify a path to results')
+    if len(sys.argv) < 3: raise ValueError('Please specify a path to results')
     results_path = sys.argv[1]
-    run(results_path)
+    winrates_path = sys.argv[2]
+    run(results_path, winrates_path)

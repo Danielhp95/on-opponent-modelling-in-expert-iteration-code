@@ -93,3 +93,10 @@ nash_averaging_mcts_and_test_agents = \
 **Intuition**: We would like to see that for a test agent, the corresponding
 MCTS equivalent agent features the same support under Nash-Averaging.
 """
+
+apprentice_convergence = \
+"""
+**Intuition** We would like to see that BRExIt takes less time than ExIt to reach convergence
+
+TODO
+"""
