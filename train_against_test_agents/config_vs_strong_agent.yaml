@@ -1,12 +1,14 @@
 experiment:
   algorithms:
+    - expert_iteration_debug
+    #
     - expert_iteration_vanilla_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_128_BatchSize
     #
     - expert_iteration_neural_net_opponent_modelling_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_128_BatchSize
     #
-    - expert_iteration_brexit_true_models_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_128_BatchSize
-    #
     - expert_iteration_brexit_learnt_models_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_128_BatchSize
+    #
+    - expert_iteration_brexit_true_models_500_GamesPerGeneration_20_MCTSBudget_NoRollout_3_epochs_128_BatchSize
   num_envs: -1
   environment:
     name: 'Connect4-v0' 
@@ -39,6 +41,7 @@ agents:
     use_true_agent_models_in_mcts: False
     use_apprentice_in_expert: True
     use_learnt_opponent_models_in_mcts: False
+    average_episode_returns_with_mcts_values: True
     use_cuda: False
     games_per_iteration: 500
     # Dataset params
@@ -77,7 +80,7 @@ agents:
     use_apprentice_in_expert: True
     use_agent_modelling: True
     use_true_agent_models_in_mcts: True
-    use_learnt_opponent_models_in_mcts: True
+    use_learnt_opponent_models_in_mcts: False
     use_dirichlet: False
     games_per_iteration: 1
     batch_size: 8
