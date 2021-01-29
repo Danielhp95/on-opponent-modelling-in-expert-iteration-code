@@ -133,10 +133,10 @@ def train_to_a_desired_winrate(task: 'Task',
     :param agent_position: Index on the agent vector where the agent will be placed
     :param base_path: Base directory from where subdirectories will be accessed to reach menageries, save episodic rewards and save checkpoints of agents.
     """
-    completed_iterations, start_time, benchmark_winrate = 0, time.time(), -math.inf
+    completed_episodes, start_time, benchmark_winrate = training_agent.finished_episodes, time.time(), -math.inf
 
     while benchmark_winrate < desired_winrate:
-        logger.info(f'Run: {run_id}. Completed_episodes: {task.total_episodes_run}. Training for extra {training_episodes}')
+        logger.info(f'Run: {run_id}. Completed_episodes: {completed_episodes}. Training for extra {training_episodes}')
         trajectories = train_for_given_iterations(
             task,
             training_agent,
@@ -145,14 +145,20 @@ def train_to_a_desired_winrate(task: 'Task',
             training_episodes,
             num_envs,
             logger)
-        completed_iterations += len(trajectories)
+        completed_episodes += len(trajectories)
         winrates_during_training = compute_winrates(trajectories[-benchmarking_episodes:])
         training_agent_winrate = winrates_during_training[agent_position]
         tolerance = 0.1
         logger.info(f'Winrate during training {training_agent_winrate}, desired - tolerance: {desired_winrate - tolerance}')
 
-        summary_writer.add_scalar('Training/Winrate_episodes', training_agent_winrate, completed_iterations)
+        summary_writer.add_scalar('Training/Winrate_episodes', training_agent_winrate, completed_episodes)
         summary_writer.add_scalar('Training/Winrate_handled_experiences', training_agent_winrate, training_agent.handled_experiences)
+
+        # We save before benchmarking as benchmarking can take long
+        save_trained_policy(
+            training_agent,
+            save_path=f'{base_path}/{training_agent.name}_{completed_episodes}_iterations.pt',
+            logger=logger)
 
         logger.info(f'Proceding to benchmark for {benchmarking_episodes} episodes')
         benchmark_winrate = compute_and_log_winrates_for_all_agent_variations(
@@ -168,11 +174,6 @@ def train_to_a_desired_winrate(task: 'Task',
             summary_writer=summary_writer)
 
         del trajectories # Off you go!
-
-        save_trained_policy(
-            training_agent,
-            save_path=f'{base_path}/{training_agent.name}_{completed_iterations}_iterations.pt',
-            logger=logger)
 
     logger.info('FINISHED training to reach {}. Total duration: {} seconds'.format(desired_winrate, time.time() - start_time))
 
