@@ -1,12 +1,27 @@
+# High level experiment paramrs
+experiment:
+  algorithms:
+  - ppo
+  environment:
+    name: 'Connect4-v0' 
+    env_type: 'multiagent-sequential'
+    frame_stack: 4
+  experiment_id: long_ppo_test_agent_training
+  training_episodes: 10000000
+  save_interval: 20
+  self_play_training_schemes:
+  - deltauniform
+
+# Neural net arch
 cnn_arch: &cnn_architecture
     phi_arch: 'CNN'
     use_batch_normalization: False
     preprocessed_input_dimensions: [7, 6]
-    channels: [3, 10, 20, 20, 20, 1]
+    channels: [12, 10, 20, 20, 20, 1]
     kernel_sizes: [3, 3, 3, 3, 3]
     paddings: [1, 1, 1, 1, 1]
     strides: [1, 1, 1, 1, 1]
-    #residual_connections: [(0,1), (1,2), (2,3), (3,4)]
+    residual_connections: [[0,1], [1,2], [2,3], [3,4]]
 
 agents:
   ppo:
@@ -25,15 +40,9 @@ agents:
     ppo_ratio_clip: 0.2
     use_cuda: false
     use_gae: true
-experiment:
-  algorithms:
-  - ppo
-  environment: ['Connect4-v0', 'multiagent-sequential']
-  experiment_id: long_ppo_test_agent_training
-  training_episodes: 10000000
-  save_interval: 10000
-  self_play_training_schemes:
-  - deltauniform
+    state_preprocess_fn: 'turn_into_single_element_batch_and_flatten_last_dim'
+
 self_play_training_schemes:
   deltauniform:
       delta: 0.0
+      save_every_n_episodes: 10
