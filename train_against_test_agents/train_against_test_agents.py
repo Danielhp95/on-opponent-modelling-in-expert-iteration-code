@@ -21,7 +21,6 @@ from regym.rl_loops import compute_winrates
 from regym.networks.preprocessing import (batch_vector_observation,
                                           keep_last_stack_and_batch_vector_observation,
                                           flatten_last_dim_and_batch_vector_observation)
-from regym.rl_algorithms import AgentHook, load_population_from_path
 from regym.rl_algorithms.agents import build_NeuralNet_Agent
 from regym.environments import generate_task, EnvType
 from regym.util.experiment_parsing import initialize_agents
