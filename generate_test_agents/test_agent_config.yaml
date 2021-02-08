@@ -17,11 +17,12 @@ cnn_arch: &cnn_architecture
     phi_arch: 'CNN'
     use_batch_normalization: False
     preprocessed_input_dimensions: [7, 6]
-    channels: [12, 10, 20, 20, 20, 1]
-    kernel_sizes: [3, 3, 3, 3, 3]
-    paddings: [1, 1, 1, 1, 1]
-    strides: [1, 1, 1, 1, 1]
+    channels: [12, 10, 20, 20, 20]
+    kernel_sizes: [3, 3, 3, 3]
+    paddings: [1, 1, 1, 1]
+    strides: [1, 1, 1, 1]
     residual_connections: [[0,1], [1,2], [2,3], [3,4]]
+    final_feature_dim: 64
 
 agents:
   ppo:

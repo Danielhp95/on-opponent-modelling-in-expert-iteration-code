@@ -27,11 +27,12 @@ cnn_arch: &cnn_architecture
     use_batch_normalization: True
     preprocessed_input_dimensions: [7, 6]
     # Channels are: 3 (empty, p1 pieces, p2 pieces) * 4 stacked frames
-    channels: [12, 15, 20, 20, 20, 1]
-    kernel_sizes: [3, 3, 3, 3, 3]
-    paddings: [1, 1, 1, 1, 1]
-    strides: [1, 1, 1, 1, 1]
+    channels: [12, 15, 20, 20, 20]
+    kernel_sizes: [3, 3, 3, 3]
+    paddings: [1, 1, 1, 1]
+    strides: [1, 1, 1, 1]
     residual_connections: [[0,1], [1,2], [2,3], [3,4]]
+    final_feature_dim: 64
 
 agents:
 ######## Vanilla ExIt ################
