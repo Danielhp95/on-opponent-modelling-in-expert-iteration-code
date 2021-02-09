@@ -11,6 +11,8 @@ import numpy as np
 import gym_connect4
 import torch
 
+from torch.utils.tensorboard import SummaryWriter
+
 import regym
 from regym.rl_algorithms import load_population_from_path
 from regym.environments.wrappers import FrameStack
@@ -96,6 +98,7 @@ def train_for_given_iterations(task, training_agent, self_play_scheme,
     logger.info('Training between iterations [{}, {}]: {:.2} seconds'.format(
                 completed_iterations, completed_iterations + next_training_iterations,
                 training_duration))
+    summary_writer.add_scalar('Timing/Training_iterations', training_duration, completed_iterations + next_training_iterations)
     return menagerie, training_agent, trajectories
 
 
@@ -121,7 +124,7 @@ def initialize_experiment(experiment_config, agents_config, self_play_configs):
         logger.info(f"Attempting to load agent from: {base_path}/")
         agent = load_existing_agent_and_update_task(base_path, task)
         assert os.path.exists(menagerie_path), f'Menagerie should be present at {menagerie_path}'
-        initial_menagerie = load_population_from_path(menagerie_path)
+        initial_menagerie = load_population_from_path(menagerie_path, show_progress=True)
         initial_menagerie.sort(key=lambda agent: agent.finished_episodes)
         logger.info(f'Loaded agent, with {agent.finished_episodes} episodes under its belt')
         logger.info(f'Loaded menagerie containing {len(initial_menagerie)} agents')
@@ -178,5 +181,9 @@ if __name__ == "__main__":
     exper_config, agents_config, self_play_config = load_configs(args.config)
     task, sp_schemes, agents, initial_menagerie = \
             initialize_experiment(exper_config, agents_config, self_play_config)
+
+    log_path = f"{exper_config['experiment_id']}_logs"
+    summary_writer = SummaryWriter(log_path)
+    for agent in agents: agent.summary_writer = summary_writer
 
     generate_test_agents(task, sp_schemes, agents, initial_menagerie, exper_config)
