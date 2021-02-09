@@ -58,6 +58,7 @@ def train(task: 'Task', training_agent: 'Agent',
 
     if not os.path.exists(base_path):
         os.makedirs(base_path)
+    if not os.path.exists(menagerie_path):
         os.mkdir(menagerie_path)
 
     completed_iterations, start_time = task.total_episodes_run, time.time()
@@ -176,11 +177,21 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description='Generates test agents for experiments of paper "On Opponent Modelling in Expert Iteration"')
     parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment, self-play algorithms and agents')
+    parser.add_argument('--run_id', required=False, default=0, help='ID to be appended to name')
     args = parser.parse_args()
 
     exper_config, agents_config, self_play_config = load_configs(args.config)
     task, sp_schemes, agents, initial_menagerie = \
             initialize_experiment(exper_config, agents_config, self_play_config)
+
+    exper_config['experiment_id'] = f"{exper_config['experiment_id']}_{args.run_id}"
+
+    # Saving used config files inside results directory
+    os.makedirs(exper_config['experiment_id'], exist_ok=True)
+    with open(f"{exper_config['experiment_id']}/config.yaml", 'w') as file:
+        used_configs = {**exper_config, **agents_config, **self_play_config}
+        yaml.dump(used_configs, file)
+
 
     log_path = f"{exper_config['experiment_id']}_logs"
     summary_writer = SummaryWriter(log_path)
