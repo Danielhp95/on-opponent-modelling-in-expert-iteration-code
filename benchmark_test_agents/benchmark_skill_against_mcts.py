@@ -1,4 +1,5 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
+from functools import partial
 import argparse
 import logging
 import gym_connect4
@@ -7,10 +8,11 @@ import pandas as pd
 
 import regym
 from regym.environments import generate_task, EnvType
-from regym.util.play_matches import extract_winner
+from regym.environments.wrappers import FrameStack
 from regym.networks.preprocessing import batch_vector_observation
 from regym.rl_algorithms import load_population_from_path
-from regym.rl_algorithms import build_NeuralNet_Agent, build_MCTS_Agent
+from regym.rl_algorithms import build_MCTS_Agent
+from regym.networks.preprocessing import flatten_last_dim_and_batch_vector_observation
 
 
 '''
@@ -64,43 +66,46 @@ def estimate_agent_strength(agent: regym.rl_algorithms.agents.Agent,
                                    num_episodes=(benchmarking_episodes // 2),
                                    num_envs=-1, training=False)
 
-        traj_1_winners = [extract_winner(t) for t in traj_1]  # Our agent is pos: 0
-        traj_2_winners = [extract_winner(t) for t in traj_2]  # Our agent is pos: 1
-        pos_0_winrate = traj_1_winners.count(0) / len(traj_1)
-        pos_1_winrate = traj_2_winners.count(1) / len(traj_2)
-        avg_winrate = (pos_0_winrate + pos_1_winrate) / 2
+        winrates_1 = [len(list(filter(lambda t: t.winner == a_i, traj_1))) / len(traj_1)
+            for a_i in range(2)]
+        winrates_2 = [len(list(filter(lambda t: t.winner == a_i, traj_2))) / len(traj_2)
+            for a_i in range(2)]
+
+        avg_winrate = (winrates_1[0] + winrates_2[1]) / 2
 
         df = df.append({'test_agent_id': agent.handled_experiences ,
                         'mcts_budget': budget,
-                        'winrate_pos_0': pos_0_winrate,
-                        'winrate_pos_1': pos_1_winrate,
+                        'winrate_pos_0': winrates_1[0],
+                        'winrate_pos_1': winrates_2[1],
                         'avg_winrate': avg_winrate}, ignore_index=True)
 
-        logger.info(f'WINRATES: Total = {avg_winrate}\tPos 0 = {pos_0_winrate}\t Pos 1 = {pos_1_winrate}')
+        logger.info(f'WINRATES: Total = {avg_winrate}\tPos 0 = {winrates_1[0]}\t Pos 1 = {winrates_2[1]}')
 
         if avg_winrate < desired_winrate:
             return budget, df
 
 
-def main(path: str, logger):
-    initial_mcts_config = {'budget': 10, 'rollout_budget': 100,
+def main(population: List['Agent'], logger, num_stack: int):
+    initial_mcts_config = {'budget': 20, 'rollout_budget': 100,
                            'selection_phase': 'ucb1',
                            'exploration_factor_ucb1': 1.41,
                            'use_dirichlet': False,
                            'dirichlet_alpha': None}
-    task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION)
+    task = generate_task(
+        'Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION,
+        wrappers=create_wrapper(
+            num_stack=num_stack
+        )
+    )
 
     strength_estimation_df = pd.DataFrame(columns=('test_agent_id', 'mcts_budget', 'winrate_pos_0',
                                'winrate_pos_1', 'avg_winrate'))
 
-    for agent in load_population(path):
-        logger.info(f'Benchmarking agent with {agent.algorithm.num_updates} number of updates')
-        nn_agent = build_NeuralNet_Agent(task,
-                {'neural_net': agent.algorithm.model, 'pre_processing_fn': batch_vector_observation},
-                agent_name='NeuralNet')
+    for agent in population:
+        logger.info(f'Benchmarking agent with {agent.algorithm.num_updates} number of updates and {agent.finished_episodes} finished episodes')
 
         agent_strength, agent_specific_strength_estimation_df = estimate_agent_strength(
-                nn_agent, task, 0.5, initial_mcts_config, logger)
+                agent, task, 0.5, initial_mcts_config, logger)
         strength_estimation_df = strength_estimation_df.append(
             agent_specific_strength_estimation_df, ignore_index=True)
 
@@ -108,9 +113,9 @@ def main(path: str, logger):
     strength_estimation_df.to_csv('mcts_equivalent_strenght_estimation_df.csv')
 
 
-def load_population(path):
-    sort_fn = lambda x: int(x.split('/')[-1].split('_')[0])  # PPO test training
-    return load_population_from_path(path=path, sort_fn=sort_fn)
+def create_wrapper(num_stack: int):
+    frame_stack_wrapper = partial(FrameStack, num_stack=num_stack)
+    return [frame_stack_wrapper]
 
 
 if __name__ == '__main__':
@@ -123,6 +128,17 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Estimates the skill of agents by playing against increasingly strong MCTS agents')
     parser.add_argument('--path', required=True, help='Path to directory containing trained agents to be benchmarked')
+    parser.add_argument('--num_stack', required=True, help='Number of FrameStack(s)')
     args = parser.parse_args()
 
-    main(args.path, logger)
+    population = load_population_from_path(path=args.path, show_progress=True)
+    population.sort(key=lambda agent: agent.finished_episodes)
+
+    for agent in population:
+        agent.requires_environment_model = False
+        agent.training = False
+        # If not using frame stack: TODO
+        # If using frame stack
+        agent.state_preprocess_fn = flatten_last_dim_and_batch_vector_observation
+
+    main(population, logger, int(args.num_stack))

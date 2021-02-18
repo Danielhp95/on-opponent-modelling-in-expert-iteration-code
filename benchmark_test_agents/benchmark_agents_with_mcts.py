@@ -37,7 +37,12 @@ This script generates 3 .csv files:
 
 
 def main(population: List, name: str):
-    task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION)
+    task = generate_task(
+        'Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION,
+        wrappers=create_wrapper(
+            num_stack=4
+        )
+    )
 
     winrate_matrix = compute_winrate_matrix_metagame(
             population=population, episodes_per_matchup=200, task=task)
@@ -54,6 +59,10 @@ def main(population: List, name: str):
 
     plt.show()
 
+def create_wrapper(num_stack: int):
+    frame_stack_wrapper = partial(FrameStack, num_stack=num_stack)
+    return [frame_stack_wrapper]
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Computes winrate matrices and Nash averagings for test agents of paper "On Opponent Modelling in Expert Iteration"')
@@ -66,6 +75,7 @@ if __name__ == "__main__":
     #sort_fn = lambda x: int(x.split('_')[-1][:-3])  # ExIt
     sort_fn = lambda x: int(x.split('/')[-1].split('_')[0])  # PPO test training
     sorted_population = load_population_from_path(path=args.path, sort_fn=sort_fn)
+    sorted_population.sort(key=lambda agent: agent.finished_episodes)
 
     for agent in sorted_population:
         agent.requires_environment_model = False

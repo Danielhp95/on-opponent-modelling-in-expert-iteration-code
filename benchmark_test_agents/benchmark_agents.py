@@ -35,9 +35,14 @@ This script generates 3 .csv files:
 '''
 
 
-def main(population: List, name: str):
+def main(population: List, name: str, num_stack: int):
     #task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION)
-    task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION, wrappers=create_wrapper(num_stack=4))
+    task = generate_task(
+        'Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION,
+        wrappers=create_wrapper(
+            num_stack=num_stack
+        )
+    )
 
     winrate_matrix = compute_winrate_matrix_metagame(
             population=sorted_population,
@@ -69,6 +74,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Computes winrate matrices and Nash averagings for test agents of paper "On Opponent Modelling in Expert Iteration"')
     parser.add_argument('--path', required=True, help='Path to directory containing trained agents to be benchmarked')
     parser.add_argument('--name', required=True, help='Identifier, used in file creation')
+    parser.add_argument('--num_stack', required=True, help='Number of FrameStack(s)')
     args = parser.parse_args()
     os.makedirs(args.name, exist_ok=True)
 
@@ -82,6 +88,8 @@ if __name__ == "__main__":
     for agent in sorted_population:
         agent.requires_environment_model = False
         agent.training = False
+        # If not using frame stack: TODO
+        # If using frame stack
         agent.state_preprocess_fn = flatten_last_dim_and_batch_vector_observation
 
-    main(population=sorted_population, name=args.name)
+    main(population=sorted_population, name=args.name, num_stack=int(args.num_stack))
