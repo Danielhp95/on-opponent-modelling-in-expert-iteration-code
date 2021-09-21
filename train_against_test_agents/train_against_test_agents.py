@@ -21,7 +21,7 @@ from regym.rl_loops import compute_winrates
 from regym.networks.preprocessing import (batch_vector_observation,
                                           keep_last_stack_and_batch_vector_observation,
                                           flatten_last_dim_and_batch_vector_observation)
-from regym.rl_algorithms.agents import build_NeuralNet_Agent
+from regym.rl_algorithms.agents import build_NeuralNet_Agent, build_Random_Agent
 from regym.environments import generate_task, EnvType
 from regym.util.experiment_parsing import initialize_agents
 from regym.util.experiment_parsing import filter_relevant_configurations
@@ -385,15 +385,23 @@ def save_trained_policy(trained_agent, save_path: str, logger):
 def initialize_experiment(experiment_config, agents_config, args):
     task = create_task_from_config(experiment_config['environment'])
     agents = initialize_agents(task, agents_config)
-    test_agent = build_NeuralNet_Agent(
-        task,
-        {'neural_net': torch.load(args.opponent_path).algorithm.model,
-        #'pre_processing_fn': batch_vector_observation},
-        'state_preprocess_fn': keep_last_stack_and_batch_vector_observation
-        },
-        f'TestAgent'
-    )
+
+    test_agent = create_test_agent(args, task)
     return task, agents, test_agent
+
+def create_test_agent(args, task) -> 'Agent':
+    if args.opponent_path == "random":
+        test_agent = build_Random_Agent(task, {}, 'Random_test_agent')
+    else:
+        test_agent = build_NeuralNet_Agent(
+            task,
+            {'neural_net': torch.load(args.opponent_path).algorithm.model,
+            #'pre_processing_fn': batch_vector_observation},
+            'state_preprocess_fn': keep_last_stack_and_batch_vector_observation
+            },
+            f'TestAgent'
+        )
+    return test_agent
 
 def create_task_from_config(environment_config):
     wrappers = create_wrappers(environment_config)
