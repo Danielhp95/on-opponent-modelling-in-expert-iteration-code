@@ -233,6 +233,9 @@ def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: fl
     is_exit_opponent_modelling = not(agent.use_learnt_opponent_models_in_mcts or agent.use_true_agent_models_in_mcts) and agent.use_agent_modelling
     is_vanilla_exit = not(agent.use_learnt_opponent_models_in_mcts or agent.use_true_agent_models_in_mcts) and not(agent.use_agent_modelling)
 
+    ## Important! Set the apprentice's neural net to "eval" mode
+    agent.apprentice.eval()
+
     ## Compute necessary winrates
     (true_models_winrate, learnt_opponent_model_winrate,
      vanilla_exit_winrate, apprentice_only_winrate) = None, None, None, None
@@ -248,6 +251,9 @@ def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: fl
 
     # All agent variations have to compute this
     apprentice_only_winrate = compute_apprentice_only_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
+    ## Return apprentice to train mode once more
+    agent.apprentice.train()
+
     log_winrates_during_benchmark(
         true_models_winrate,
         learnt_opponent_model_winrate,
@@ -259,6 +265,7 @@ def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: fl
         logger,
         save_path
     )
+
     return apprentice_only_winrate
 
 

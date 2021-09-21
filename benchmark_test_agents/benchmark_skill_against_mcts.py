@@ -101,7 +101,7 @@ def main(population: List['Agent'], logger, num_stack: int):
     strength_estimation_df = pd.DataFrame(columns=('test_agent_id', 'mcts_budget', 'winrate_pos_0',
                                'winrate_pos_1', 'avg_winrate'))
 
-    for agent in population:
+    for agent in reversed(population):
         logger.info(f'Benchmarking agent with {agent.algorithm.num_updates} number of updates and {agent.finished_episodes} finished episodes')
 
         agent_strength, agent_specific_strength_estimation_df = estimate_agent_strength(
