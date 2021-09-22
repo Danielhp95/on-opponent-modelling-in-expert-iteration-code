@@ -390,17 +390,14 @@ def initialize_experiment(experiment_config, agents_config, args):
     return task, agents, test_agent
 
 def create_test_agent(args, task) -> 'Agent':
-    if args.opponent_path == "random":
-        test_agent = build_Random_Agent(task, {}, 'Random_test_agent')
-    else:
-        test_agent = build_NeuralNet_Agent(
-            task,
-            {'neural_net': torch.load(args.opponent_path).algorithm.model,
-            #'pre_processing_fn': batch_vector_observation},
-            'state_preprocess_fn': keep_last_stack_and_batch_vector_observation
-            },
-            f'TestAgent'
-        )
+    test_agent = build_NeuralNet_Agent(
+        task,
+        {'neural_net': torch.load(args.opponent_path).algorithm.model,
+        #'pre_processing_fn': batch_vector_observation},
+        'state_preprocess_fn': keep_last_stack_and_batch_vector_observation
+        },
+        f'TestAgent'
+    )
     return test_agent
 
 def create_task_from_config(environment_config):
