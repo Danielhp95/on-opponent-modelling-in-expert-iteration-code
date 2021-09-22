@@ -393,8 +393,8 @@ def create_test_agent(args, task) -> 'Agent':
     test_agent = build_NeuralNet_Agent(
         task,
         {'neural_net': torch.load(args.opponent_path).algorithm.model,
-        #'pre_processing_fn': batch_vector_observation},
-        'state_preprocess_fn': keep_last_stack_and_batch_vector_observation
+        'state_preprocess_fn': batch_vector_observation,  # For agents trained without framestacking
+        #'state_preprocess_fn': keep_last_stack_and_batch_vector_observation  # For agents trained with framestacking
         },
         f'TestAgent'
     )
