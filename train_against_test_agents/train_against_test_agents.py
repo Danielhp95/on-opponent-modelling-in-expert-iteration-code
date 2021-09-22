@@ -273,7 +273,7 @@ def compute_apprentice_only_winrate(task, agent, opponent, agent_position, bench
     apprentice_nn_agent = build_NeuralNet_Agent(
         task,
         {'neural_net': agent.apprentice,
-         'state_preprocess_fn': flatten_last_dim_and_batch_vector_observation},
+         'state_preprocess_fn': batch_vector_observation},
          f'Apprentice_nn_agent'
     )
     apprentice_nn_winrate = benchmark_single_agent(
