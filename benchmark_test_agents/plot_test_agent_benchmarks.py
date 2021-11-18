@@ -28,7 +28,7 @@ def compute_progression_of_nash_averagings(winrate_matrix: np.ndarray):
     return np.stack(maxent_nashes)
 
 
-def plot_progression_nash_equilibriums(progression_nash: np.ndarray, show_annotations=True):
+def plot_progression_nash_equilibriums(progression_nash: np.ndarray, show_annotations=False):
     fig, ax = plt.subplots(1, 1)
     # Only show lower triangular
 
@@ -60,12 +60,12 @@ if __name__ == "__main__":
 
     winrate_matrix = np.loadtxt(args.winrate_matrix, delimiter=', ')
 
-    #nash_avgs = compute_progression_of_nash_averagings(winrate_matrix)
-    nash_avgs = pickle.load(open('nash_avgs.pickle', 'rb'))
+    nash_avgs = compute_progression_of_nash_averagings(winrate_matrix)
+    #nash_avgs = pickle.load(open('nash_avgs.pickle', 'rb'))
 
     matplotlib.rcParams.update({'font.size': 15})
 
     ax = plot_progression_nash_equilibriums(nash_avgs)
     plt.show()
-    ax = plot_winrate_matrix(winrate_matrix)
+    ax = plot_winrate_matrix(winrate_matrix, show_annotations=False)
     plt.show()
