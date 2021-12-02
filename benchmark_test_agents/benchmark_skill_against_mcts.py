@@ -12,6 +12,7 @@ from regym.environments.wrappers import FrameStack
 from regym.networks.preprocessing import batch_vector_observation
 from regym.rl_algorithms import load_population_from_path
 from regym.rl_algorithms import build_MCTS_Agent
+from regym.rl_loops import compute_winrates
 from regym.networks.preprocessing import flatten_last_dim_and_batch_vector_observation
 
 
@@ -27,34 +28,45 @@ We denote this metric as the MCTS equivalent strength of an agent
 '''
 
 
-def estimate_agent_strength(agent: regym.rl_algorithms.agents.Agent,
-                            task: regym.environments.Task,
-                            desired_winrate: float,
-                            initial_mcts_config: Dict,
-                            logger,
-                            benchmarking_episodes: int = 200) -> Tuple[int, pd.DataFrame]:
+def estimate_mcts_equivalent_strength(agent: regym.rl_algorithms.agents.Agent,
+                                      task: regym.environments.Task,
+                                      desired_winrate: float,
+                                      initial_mcts_config: Dict,
+                                      max_budget: int=2000,
+                                      budget_step: int=1,
+                                      benchmarking_episodes: int = 200,
+                                      show_progress: bool=False) \
+                                      -> Tuple[int, pd.DataFrame]:
     '''
     Computes MCTS budget for an MCTS agent (with :param: initial_mcts_config)
     required to reach a :param: desired_winrate against :param: agent in
     :param: task.
 
+    Winrates are estimated by playing :param: benchmarking_episodes between both agents.
+    If :param: desired_winrate is not met for a given buget, the budget is increased
+    by :param: budget_step and the process is repeated. If MCTS agent doesn't reach
+    :param: desired_winrate before :param: max_budget, this function returns.
+
     TODO: mention that we are talking about a non-symmetrical game
 
-    :param agent: TODO
-    :param task: TODO
-    :param desired_winrate: TODO
-    :param initial_mcts_config: TODO
-    :param logger: TODO
-    :param benchmarking_episodes: TODO
-    :returns pd.DataFrame containing logs about winrates observed during
-             strength estimation
+    :param agent: Agent to be benchmarked against MCTS
+    :param task: Task where :param: agent play against MCTS
+    :param desired_winrate: Target winrate at wich,
+    :param initial_mcts_config: Initial configuration for MCTS agent.
+    :param show_progress: Logger for debugging and monitoring purposes
+    :param budget_step: Value to increase budget by.
+    :param benchmarking_episodes: Number of episodes to be used to estimate winrate between agents
+    :returns:
+        - MCTS equivalent strength
+        - pd.DataFrame containing logs about winrates observed during strength estimation
     '''
     df = pd.DataFrame(columns=('test_agent_id', 'mcts_budget', 'winrate_pos_0',
                                'winrate_pos_1', 'avg_winrate'))
 
     config = initial_mcts_config.copy()
-    for budget in range(initial_mcts_config['budget'], 2000, 1):
-        logger.info(f'Starting benchmarking with BUDGET: {budget}')
+    for budget in range(initial_mcts_config['budget'], max_budget, budget_step):
+        if show_progress:
+            logger.info(f'Starting benchmarking with BUDGET: {budget}')
 
         config['budget'] = budget
         mcts_agent = build_MCTS_Agent(task, config, f'MCTS-{budget}')
@@ -66,51 +78,42 @@ def estimate_agent_strength(agent: regym.rl_algorithms.agents.Agent,
                                    num_episodes=(benchmarking_episodes // 2),
                                    num_envs=-1, training=False)
 
-        winrates_1 = [len(list(filter(lambda t: t.winner == a_i, traj_1))) / len(traj_1)
-            for a_i in range(2)]
-        winrates_2 = [len(list(filter(lambda t: t.winner == a_i, traj_2))) / len(traj_2)
-            for a_i in range(2)]
-
+        winrates_1, winrates_2 = compute_winrates(traj_1), compute_winrates(traj_2)
         avg_winrate = (winrates_1[0] + winrates_2[1]) / 2
 
-        df = df.append({'test_agent_id': agent.handled_experiences ,
+        df = df.append({'test_agent_id': agent.handled_experiences,  # do we care about this id?
                         'mcts_budget': budget,
                         'winrate_pos_0': winrates_1[0],
                         'winrate_pos_1': winrates_2[1],
                         'avg_winrate': avg_winrate}, ignore_index=True)
 
-        logger.info(f'WINRATES: Total = {avg_winrate}\tPos 0 = {winrates_1[0]}\t Pos 1 = {winrates_2[1]}')
+        if show_progress:
+            logger.info(f'WINRATES: Total = {avg_winrate}\tPos 0 = {winrates_1[0]}\t Pos 1 = {winrates_2[1]}')
 
         if avg_winrate < desired_winrate:
             return budget, df
 
 
-def main(population: List['Agent'], logger, num_stack: int):
-    initial_mcts_config = {'budget': 20, 'rollout_budget': 100,
+def main(population: List['Agent'], task, logger) -> pd.DataFrame:
+    initial_mcts_config = {'budget': 30, 'rollout_budget': 100,
                            'selection_phase': 'ucb1',
                            'exploration_factor_ucb1': 1.41,
                            'use_dirichlet': False,
                            'dirichlet_alpha': None}
-    task = generate_task(
-        'Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION,
-        wrappers=create_wrapper(
-            num_stack=num_stack
-        )
-    )
-
     strength_estimation_df = pd.DataFrame(columns=('test_agent_id', 'mcts_budget', 'winrate_pos_0',
                                'winrate_pos_1', 'avg_winrate'))
 
     for agent in reversed(population):
         logger.info(f'Benchmarking agent with {agent.algorithm.num_updates} number of updates and {agent.finished_episodes} finished episodes')
 
-        agent_strength, agent_specific_strength_estimation_df = estimate_agent_strength(
-                agent, task, 0.5, initial_mcts_config, logger)
+        agent_strength, agent_specific_strength_estimation_df = estimate_mcts_equivalent_strength(
+                agent, task, 0.5, initial_mcts_config, show_progress=True)
         strength_estimation_df = strength_estimation_df.append(
             agent_specific_strength_estimation_df, ignore_index=True)
 
         logger.info(f'Agent strength: {agent_strength} (MCTS budget)')
     strength_estimation_df.to_csv('mcts_equivalent_strenght_estimation_df.csv')
+    return strength_estimation_df
 
 
 def create_wrapper(num_stack: int):
@@ -128,17 +131,13 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Estimates the skill of agents by playing against increasingly strong MCTS agents')
     parser.add_argument('--path', required=True, help='Path to directory containing trained agents to be benchmarked')
-    parser.add_argument('--num_stack', required=True, help='Number of FrameStack(s)')
     args = parser.parse_args()
 
-    population = load_population_from_path(path=args.path, show_progress=True)
+    population = load_population_from_path(path=args.path, show_progress=True, state_preprocess_fn=batch_vector_observation)
     population.sort(key=lambda agent: agent.finished_episodes)
+    population = [population[-1]]
 
     for agent in population:
-        agent.requires_environment_model = False
-        agent.training = False
-        # If not using frame stack: TODO
-        # If using frame stack
-        agent.state_preprocess_fn = flatten_last_dim_and_batch_vector_observation
+        agent.requires_environment_model, agent.training = False, False
 
-    main(population, logger, int(args.num_stack))
+    main(population, logger, task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION))

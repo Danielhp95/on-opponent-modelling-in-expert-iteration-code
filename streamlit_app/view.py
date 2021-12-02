@@ -1,4 +1,5 @@
-from typing import Callable, Dict, List
+from typing import Callable
+from copy import deepcopy
 import os
 import sys
 from functools import partial
@@ -55,7 +56,9 @@ def run(path: str, winrates_path: str):
             show_description = st.checkbox('Show description', key=description_key)
             if show_description:
                 st.markdown(description)
-            plot_func()
+            fig = plot_func()
+            plt.tight_layout()
+            st.pyplot(fig)
 
     results_dir = data_directory_selection_sidebar_widget(path)
 
@@ -76,7 +79,7 @@ def run(path: str, winrates_path: str):
     winrate_directory = st.sidebar.text_input('Select results directory', winrates_path)
     show_convergence_times = st.sidebar.checkbox('Convergence times', True)
     winrate_threshold = st.sidebar.slider(label='Winrate threshold for convergence',
-                                          min_value=0., max_value=1., step=0.01, value=0.7)
+                                          min_value=0., max_value=1., step=0.01, value=0.5)
 
     #plot_component(show_winrate_matrix_test_agents,
     #               title='# Winrate matrix: Test agents',
@@ -116,29 +119,79 @@ def run(path: str, winrates_path: str):
     #                                 results['winrate_matrix_test_agents_and_mcts'],
     #                                 results['maxent_nash_test_agents_and_mcts']))
 
-    plot_component(show_convergence_times,
-                   title='# Box and whiskers plot: Apprentice convergence',
+    plot_component(True,  # whether to show or not
+                   title='# Line plot winrate evolution vs fixed agent',
                    description=descriptions.apprentice_convergence,
-                   description_key='description 6',
-                   plot_func=partial(plot_apprentice_convergence_times,
+                   description_key='description 7',
+                   plot_func=partial(plot_winrate_progression,
                                      winrate_threshold,
                                      winrate_directory))
 
+    #plot_component(show_convergence_times,
+    #               title='# Box and whiskers plot: Apprentice convergence',
+    #               description=descriptions.apprentice_convergence,
+    #               description_key='description 6',
+    #               plot_func=partial(plot_apprentice_convergence_times,
+    #                                 winrate_threshold,
+    #                                 winrate_directory))
+
+    #plot_component(True,
+    #               title='# Box and whiskers plot: Apprentice convergence',
+    #               description=descriptions.apprentice_convergence,
+    #               description_key='description 6',
+    #               plot_func=partial(plot_brexit_ablation_convergence_times,
+    #                                 winrate_threshold,
+    #                                 winrate_directory))
 
 
-def plot_apprentice_convergence_times(winrate_threshold: float, winrates_path: str):
-    # TODO
-    # Box and whiskers:
-    # Y: elapsed_episodes or handled_experiences
-    # X: Groups Of test agent, each containing all agent variations.
-
-    fig, ax = plt.subplots(1, 1)
-
-    experiment_dir = './test_data/test_experiment'
+def plot_winrate_progression(winrate_threshold, winrates_path):
+    fig = plt.figure()
+    gs = fig.add_gridspec(2, 1, hspace=0, wspace=0, height_ratios=[1., 1.5])
+    (ax1, ax2) = gs.subplots(sharex='col')
+    target_ablation = 'apprentice_only'
     parsed_winrates_df = create_algorithm_ablation_winrate_df(winrates_path)
+    # Shortens names: A hack for better naming
 
-    # For each algorithm on each run, on each ablation:
-    # find first row (if existing!) where winrate reaches :param: winrate_threshold
+    parsed_winrates_df['algorithm'] = parsed_winrates_df['algorithm'].apply(rename)
+    parsed_winrates_df = parsed_winrates_df[parsed_winrates_df['ablation'] == target_ablation]
+
+    parsed_winrates_df.rename(
+        {'neural_net_opponent_modelling': 'ExIt-opponent modelling',
+         'brexit_learnt_models': 'BRExIt-learnt-model',
+         'brexit_true_models': 'BRExIt'
+         },
+         inplace=True
+    )
+
+    parsed_winrates_df =  parsed_winrates_df.sort_values('algorithm')
+
+    ax2 = sns.lineplot(
+        x='elapsed_episodes',
+        y='winrate',
+        hue='algorithm',
+        style='algorithm',
+        data=parsed_winrates_df,
+        ax=ax2
+    )
+
+    ## Draw line at target winrate
+    ax2.axhline(winrate_threshold, color='black')
+    #ax2.text(s='Approximate best response', x=1000, y=winrate_threshold +0.02)
+
+
+    #### Adding tick next to winrate threshold
+    yt = ax2.get_yticks()
+    yt = np.append(yt, winrate_threshold)
+    yt = np.around(yt, 2)
+    yt = yt[yt >= 0.] # Remove negative values
+
+    ytl = yt.tolist()
+    ytl[-1] = winrate_threshold
+    ax2.set_yticks(yt)
+    ax2.set_yticklabels(ytl)
+    ####
+
+    ax2.legend(bbox_to_anchor=(1.0, 1.65),borderaxespad=0)
 
     filtered_winrates = parsed_winrates_df.groupby(
         ['algorithm', 'run_id', 'ablation']
@@ -146,10 +199,89 @@ def plot_apprentice_convergence_times(winrate_threshold: float, winrates_path: s
         partial(get_first_value_above_threshold, threshold=winrate_threshold)
     ).dropna()
 
-    sns.boxplot(x='ablation', y='elapsed_episodes', hue='algorithm',
-                data=filtered_winrates, ax=ax)
-    fig.legend(loc='upper center')
-    st.pyplot(fig)
+    ax1 = sns.barplot(x='elapsed_episodes', y='algorithm',
+                     data=filtered_winrates, ax=ax1,
+                     orient='h')
+    #ax1.set_yticklabels(['','','',''])  # Remove long names
+
+    return fig
+
+
+def plot_brexit_ablation_convergence_times(winrate_threshold, winrates_path):
+    fig, axes = plt.subplots(1, 2, gridspec_kw={'width_ratios': [2, 1]})
+    parsed_winrates_df = create_algorithm_ablation_winrate_df(winrates_path)
+    # Shortens names: A hack for better naming
+
+    parsed_winrates_df['algorithm'] = parsed_winrates_df['algorithm'].apply(rename)
+
+    parsed_winrates_df.rename(
+        {'neural_net_opponent_modelling': 'ExIt-opponent modelling',
+         'brexit_learnt_models': 'BRExIt-learnt-model',
+         'brexit_true_models': 'BRExIt'
+         },
+         inplace=True
+    )
+
+    parsed_winrates_df = parsed_winrates_df[parsed_winrates_df['algorithm'] == 'BRExIt']
+
+    axes[0] = sns.lineplot(x='elapsed_episodes', y='winrate', hue='ablation',
+                           style='ablation', data=parsed_winrates_df, ax=axes[0],
+                           legend=None)
+
+    filtered_winrates = parsed_winrates_df.groupby(
+        ['run_id', 'ablation']
+    ).apply(
+        partial(get_first_value_above_threshold, threshold=winrate_threshold)
+    ).dropna()
+
+    axes[1] = sns.barplot(x='ablation', y='elapsed_episodes',
+                           data=filtered_winrates, ax=axes[1])
+    axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=45, horizontalalignment='right')
+
+    return fig
+
+
+# NOTE: We are not using this function anymore!
+def plot_apprentice_convergence_times(winrate_threshold: float, winrates_path: str):
+    #fig = plt.figure()
+    #gs = fig.add_gridspec(2, 2, hspace=0, wspace=0)
+    fig, ax = plt.subplots(1, 1)
+
+    target_ablation = 'apprentice_only'
+    parsed_winrates_df = create_algorithm_ablation_winrate_df(winrates_path)
+
+    # To make names more palatable
+    parsed_winrates_df['algorithm'] = parsed_winrates_df['algorithm'].apply(rename)
+
+    # For every run, find the first row where :param: winrate_threshold is surpassed
+    filtered_winrates = parsed_winrates_df.groupby(
+        ['algorithm', 'run_id', 'ablation']
+    ).apply(
+        partial(get_first_value_above_threshold, threshold=winrate_threshold)
+    ).dropna()
+
+    ## HACK WE CREATE num_fake_test_agents COPIES 
+    parsed_winrates_df['test_agent'] = 1
+    copy_1 = deepcopy(parsed_winrates_df)
+    copy_1['test_agent'] = 2
+    copy_2 = deepcopy(parsed_winrates_df)
+    copy_2['test_agent'] = 3
+    filtered_winrates = pd.concat([parsed_winrates_df, copy_1, copy_2])
+
+    # We only care about one ablation, cuz most of them are 100% most of the time
+    filtered_winrates = filtered_winrates[filtered_winrates['ablation'] == target_ablation]
+
+    # If no algorithms reached :param: winrate_threshold, don't plot anything
+    if len(filtered_winrates) == 0:
+        st.markdown(f"## None of the algorithms: {parsed_winrates_df['algorithm'].unique()} "
+                    f' reached a target winrate of **{winrate_threshold}** on ablation **{target_ablation}**')
+        return
+
+    ax = sns.barplot(x='test_agent', y='elapsed_episodes', hue='algorithm',
+                     data=filtered_winrates, ax=ax)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
+
+    return fig
 
 
 def get_first_value_above_threshold(d: pd.DataFrame, threshold: float):
@@ -234,10 +366,9 @@ def plot_winrate_matrix_and_support(winrate_matrix: np.ndarray, nash_support: np
     plot_winrate_matrix(ax[0], winrate_matrix)
     plot_nash_support(ax[1], nash_support, column=True)
 
-    plt.tight_layout()
     plt.subplots_adjust(wspace=0, hspace=0)
 
-    st.pyplot(fig)
+    return fig
 
 
 def plot_nash_support(ax, nash: np.ndarray,
@@ -282,7 +413,7 @@ def plot_nash_averaging_evolution_test_agents(evolution_nash_averaging_test_agen
     ax.set_ylabel(ylabel='benchmarking round', fontdict={'fontsize': 20})
     ax.set_title(label='Progression of Nash equilibrium during training', fontdict={'fontsize': 20})
 
-    st.pyplot(fig)
+    return fig
 
 
 def plot_mcts_equivalent_strength(mcts_equivalent_strength: np.ndarray):
@@ -307,10 +438,9 @@ def plot_winrate_matrix_mcts_and_test_agents(winrate_matrix: np.ndarray, nash_su
     plot_nash_support(ax[1], nash_support, column=True)
     add_population_delimiting_lines(axes=ax, length=len(winrate_matrix))
 
-    plt.tight_layout()
     plt.subplots_adjust(wspace=0, hspace=0)
 
-    st.pyplot(fig)
+    return fig
 
 
 def add_population_delimiting_lines(axes, length, number_populations=2):
@@ -322,6 +452,16 @@ def add_population_delimiting_lines(axes, length, number_populations=2):
                      color='lime', lw=1.5)
         axes[1].hlines(y=i_delimiter, xmin=0, xmax=length,
                      color='lime', lw=2)
+
+
+def rename(name):
+    shorter_name = name.split('expert_iteration_')[1].split('_300')[0]
+    rename_dict = {
+        'neural_net_opponent_modelling': 'ExIt-opponent modelling',
+        'brexit_learnt_models': 'BRExIt-learnt-model',
+        'brexit_true_models': 'BRExIt',
+        'vanilla': 'ExIt'}
+    return rename_dict[shorter_name]
 
 
 if __name__ == '__main__':
