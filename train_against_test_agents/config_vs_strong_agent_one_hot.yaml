@@ -2,8 +2,6 @@ experiment:
   algorithms:
     #- expert_iteration_debug
     #
-    - expert_iteration_vanilla_800_GamesPerGeneration_50_MCTSBudget_NoRollout_3_epochs_128_BatchSize
-    #
     - expert_iteration_neural_net_opponent_modelling_800_GamesPerGeneration_50_MCTSBudget_NoRollout_3_epochs_128_BatchSize
     #
     - expert_iteration_brexit_learnt_models_800_GamesPerGeneration_50_MCTSBudget_NoRollout_3_epochs_128_BatchSize
@@ -13,7 +11,7 @@ experiment:
   environment:
     name: 'Connect4-v0' 
     env_type: 'multiagent-sequential'
-  experiment_id: '1st_december'
+  experiment_id: '1st_december_one_hot'
   desired_winrate: 0.50
   # ideally, a multiple of policy updates. Param :games_per iteration:
   training_episodes: 800
@@ -41,6 +39,7 @@ agents:
     use_true_agent_models_in_mcts: False
     use_apprentice_in_expert: True
     use_learnt_opponent_models_in_mcts: False
+    request_observed_action: True
     average_episode_returns_with_mcts_values: True
     use_cuda: False
     games_per_iteration: 800
@@ -52,7 +51,7 @@ agents:
     # MCTS config
     mcts_budget: 50
     mcts_rollout_budget: 0
-    mcts_exploration_factor: 2
+    mcts_exploration_factor: 2.
     mcts_use_dirichlet: False
     mcts_dirichlet_alpha: 1.
     mcts_dirichlet_strength: 0.5

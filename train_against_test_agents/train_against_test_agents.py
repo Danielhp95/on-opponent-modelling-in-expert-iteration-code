@@ -8,6 +8,7 @@ import logging
 import os
 from functools import reduce, partial
 
+from shutil import copyfile
 import numpy as np
 import gym_connect4
 import multiprocessing
@@ -58,9 +59,6 @@ def train_against_fixed_agent(task: 'Task',
                               summary_writer: SummaryWriter):
     logger = logging.getLogger(f'Run: {run_id}. TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {test_agent.name}')
     logger.info('Started')
-
-    # Create directory structure
-    create_directory_structure(base_path, agent)
 
     train_to_a_desired_winrate(
         task,
@@ -239,15 +237,16 @@ def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: fl
     ## Compute necessary winrates
     (true_models_winrate, learnt_opponent_model_winrate,
      vanilla_exit_winrate, apprentice_only_winrate) = None, None, None, None
-    if is_brexit:
-        true_models_winrate = training_agent_winrate
-        learnt_opponent_model_winrate = compute_learnt_opponent_model_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
-        vanilla_exit_winrate = compute_vanilla_exit_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
-    elif is_brexit_learnt_models:
-        learnt_opponent_model_winrate = training_agent_winrate
-        vanilla_exit_winrate = compute_vanilla_exit_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
-    elif is_exit_opponent_modelling or is_vanilla_exit:
-        vanilla_exit_winrate = training_agent_winrate
+    # Commenting these out to speed up benchmarking, as we have very limited compute
+    #if is_brexit:
+    #    true_models_winrate = training_agent_winrate
+    #    learnt_opponent_model_winrate = compute_learnt_opponent_model_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
+    #    vanilla_exit_winrate = compute_vanilla_exit_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
+    #elif is_brexit_learnt_models:
+    #    learnt_opponent_model_winrate = training_agent_winrate
+    #    vanilla_exit_winrate = compute_vanilla_exit_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
+    #elif is_exit_opponent_modelling or is_vanilla_exit:
+    #    vanilla_exit_winrate = training_agent_winrate
 
     # All agent variations have to compute this
     apprentice_only_winrate = compute_apprentice_only_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
@@ -451,6 +450,7 @@ if __name__ == "__main__":
     parser.add_argument('--agent_index', required=False, default=None, help='Optional. Index of the agent that will be kept out of all of the agents specified in config file. Useful for batch jobs in SLURM settings')
     parser.add_argument('--run_id', required=True,
                         help='Identifier for the single_run that will be run. Ignoring number of runs in config file.')
+    parser.add_argument('--extra_id', required=False, default='', help='Extra string to be added at the beginning of all the directories that will be generated')
     args = parser.parse_args()
 
     # Spawn is required for GPU to be used inside of neural_net_server
@@ -469,18 +469,24 @@ if __name__ == "__main__":
     agent_name = exper_config['algorithms'][agent_index]
     agent = agents[agent_index]
 
-    base_path = f"{exper_config['experiment_id']}/run-{args.run_id}/{agent_name}"
+    if args.extra_id != '': base_name = f"{args.extra_id}_{exper_config['experiment_id']}"
+    else: base_name = exper_config['experiment_id']
 
+    base_path = f"{base_name}/run-{args.run_id}/{agent_name}"
     # Maybe this should go into initialize_experiment
     if os.path.exists(base_path) and (os.listdir(base_path) != ['winrates']):  # Load pre-trained agent, if there is any
         top_level_logger.info(f'Attempting to load agent from: {base_path}')
         agent = load_agent_and_update_task(base_path, task)
         top_level_logger.info(f'Loaded agent, with {agent.finished_episodes} episodes under its belt')
 
-    log_path = f"{exper_config['experiment_id']}_logs/run-{args.run_id}/{agent_name}"
+    log_path = f"{base_name}_logs/run-{args.run_id}/{agent_name}"
 
     summary_writer = SummaryWriter(log_path)
     agent.algorithm.summary_writer = summary_writer
+
+    # Create directory structure
+    create_directory_structure(base_path, agent)
+    copyfile(args.config, f'{base_name}/config.yaml') # Copy config file over to results directory
 
     train_against_fixed_agent(
         task,
