@@ -13,7 +13,6 @@ from regym.networks.preprocessing import batch_vector_observation
 from regym.rl_algorithms import load_population_from_path
 from regym.rl_algorithms import build_MCTS_Agent
 from regym.rl_loops import compute_winrates
-from regym.networks.preprocessing import flatten_last_dim_and_batch_vector_observation
 
 
 '''
@@ -60,10 +59,8 @@ def estimate_mcts_equivalent_strength(agent: regym.rl_algorithms.agents.Agent,
         - MCTS equivalent strength
         - pd.DataFrame containing logs about winrates observed during strength estimation
     '''
-    df = pd.DataFrame(columns=('test_agent_id', 'mcts_budget', 'winrate_pos_0',
-                               'winrate_pos_1', 'avg_winrate'))
-
     config = initial_mcts_config.copy()
+    dfs = []
     for budget in range(initial_mcts_config['budget'], max_budget, budget_step):
         if show_progress:
             logger.info(f'Starting benchmarking with BUDGET: {budget}')
@@ -79,41 +76,52 @@ def estimate_mcts_equivalent_strength(agent: regym.rl_algorithms.agents.Agent,
                                    num_envs=-1, training=False)
 
         winrates_1, winrates_2 = compute_winrates(traj_1), compute_winrates(traj_2)
-        avg_winrate = (winrates_1[0] + winrates_2[1]) / 2
+        trained_agent_victories_traj_1 = [int(t.winner == 0) for t in traj_1]
+        trained_agent_victories_traj_2 = [int(t.winner == 1) for t in traj_2]
 
-        df = df.append({'test_agent_id': agent.handled_experiences,  # do we care about this id?
-                        'mcts_budget': budget,
-                        'winrate_pos_0': winrates_1[0],
-                        'winrate_pos_1': winrates_2[1],
-                        'avg_winrate': avg_winrate}, ignore_index=True)
+        #trained_agent_avg_winrate = (winrates_1[0] + winrates_2[1]) / 2
 
+        df_pos_1 = pd.DataFrame({
+            'test_agent_id': agent.handled_experiences,
+            'mcts_budget': budget,
+            'position': 0,
+            'victories': trained_agent_victories_traj_1
+        })
+        df_pos_2 = pd.DataFrame({
+            'test_agent_id': agent.handled_experiences,
+            'mcts_budget': budget,
+            'position': 1,
+            'victories': trained_agent_victories_traj_2
+        })
+        dfs += [pd.concat([df_pos_1, df_pos_2], ignore_index=True)]
+
+        trained_agent_avg_winrate = (df_pos_1['victories'].mean() + df_pos_2['victories'].mean()) / 2
         if show_progress:
-            logger.info(f'WINRATES: Total = {avg_winrate}\tPos 0 = {winrates_1[0]}\t Pos 1 = {winrates_2[1]}')
+            logger.info(f'WINRATES: Total = {trained_agent_avg_winrate}\tPos 0 = {winrates_1[0]}\t Pos 1 = {winrates_2[1]}')
 
-        if avg_winrate < desired_winrate:
-            return budget, df
+        if trained_agent_avg_winrate < desired_winrate:
+            return budget, pd.concat(dfs)
 
 
-def main(population: List['Agent'], task, logger) -> pd.DataFrame:
-    initial_mcts_config = {'budget': 30, 'rollout_budget': 100,
+def main(population: List['Agent'], task, winrate_threshold: float, logger) -> pd.DataFrame:
+    initial_mcts_config = {'budget': 10, 'rollout_budget': 100,
                            'selection_phase': 'ucb1',
                            'exploration_factor_ucb1': 1.41,
                            'use_dirichlet': False,
                            'dirichlet_alpha': None}
-    strength_estimation_df = pd.DataFrame(columns=('test_agent_id', 'mcts_budget', 'winrate_pos_0',
-                               'winrate_pos_1', 'avg_winrate'))
+    strength_estimation_dfs = []
 
     for agent in reversed(population):
         logger.info(f'Benchmarking agent with {agent.algorithm.num_updates} number of updates and {agent.finished_episodes} finished episodes')
 
         agent_strength, agent_specific_strength_estimation_df = estimate_mcts_equivalent_strength(
-                agent, task, 0.5, initial_mcts_config, show_progress=True)
-        strength_estimation_df = strength_estimation_df.append(
-            agent_specific_strength_estimation_df, ignore_index=True)
+                agent, task, winrate_threshold, initial_mcts_config, show_progress=True)
+        strength_estimation_dfs += [agent_specific_strength_estimation_df]
 
         logger.info(f'Agent strength: {agent_strength} (MCTS budget)')
-    strength_estimation_df.to_csv('mcts_equivalent_strenght_estimation_df.csv')
-    return strength_estimation_df
+    strength_estimation_dfs = pd.concat(strength_estimation_dfs, ignore_index=True)
+    strength_estimation_dfs.to_csv('mcts_equivalent_strenght_estimation_df.csv')
+    return strength_estimation_dfs
 
 
 def create_wrapper(num_stack: int):
@@ -131,13 +139,14 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Estimates the skill of agents by playing against increasingly strong MCTS agents')
     parser.add_argument('--path', required=True, help='Path to directory containing trained agents to be benchmarked')
+    parser.add_argument('--winrate_threshold', required=True, help='Winrate threshold for MCTS equivalent strength')
     args = parser.parse_args()
 
     population = load_population_from_path(path=args.path, show_progress=True, state_preprocess_fn=batch_vector_observation)
     population.sort(key=lambda agent: agent.finished_episodes)
-    population = [population[-1]]
+    # population = [population[-1]]
 
     for agent in population:
         agent.requires_environment_model, agent.training = False, False
 
-    main(population, logger, task = generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION))
+    main(population, generate_task('Connect4-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION), float(args.winrate_threshold), logger)
