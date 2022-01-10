@@ -1,17 +1,18 @@
 from typing import List, Tuple, Dict, Optional
 from copy import deepcopy
+import random
 import math
 import time
 import yaml
 import argparse
 import logging
 import os
+import glob
 from functools import reduce, partial
 
 from shutil import copyfile
 import numpy as np
 import gym_connect4
-import multiprocessing
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -50,20 +51,21 @@ Each winrates/*.csv file features the following columns:
 '''
 
 
-def train_against_fixed_agent(task: 'Task',
+def train_against_fixed_agents(task: 'Task',
                               agent: 'Agent',
-                              test_agent: 'Agent',
+                              test_agents: List['Agent'],
                               base_path: str,
                               run_id: int,
                               exper_config: Dict,
                               summary_writer: SummaryWriter):
-    logger = logging.getLogger(f'Run: {run_id}. TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {test_agent.name}')
+    agent_names = [opponent.name for opponent in test_agents]
+    logger = logging.getLogger(f'Run: {run_id}. TRAINING: Task: {task.name}. Agent: {agent.name} Opponent: {agent_names}')
     logger.info('Started')
 
     train_to_a_desired_winrate(
         task,
         training_agent=agent,
-        opponent=test_agent,
+        opponents=test_agents,
         desired_winrate=exper_config['desired_winrate'],
         training_episodes=exper_config['training_episodes'],
         benchmarking_episodes=exper_config['benchmarking_episodes'],
@@ -110,7 +112,7 @@ def create_empty_csv_file_with_headers(file_path):
 
 def train_to_a_desired_winrate(task: 'Task',
                                training_agent: 'Agent',
-                               opponent: 'Agent',
+                               opponents: List['Agent'],
                                desired_winrate: float,
                                training_episodes: int,
                                benchmarking_episodes: int,
@@ -137,7 +139,7 @@ def train_to_a_desired_winrate(task: 'Task',
         trajectories = train_for_given_iterations(
             task,
             training_agent,
-            opponent,
+            opponents,
             agent_position,
             training_episodes,
             num_envs,
@@ -159,10 +161,10 @@ def train_to_a_desired_winrate(task: 'Task',
 
         logger.info(f'Proceding to benchmark for {benchmarking_episodes} episodes')
         benchmark_winrate = compute_and_log_winrates_for_all_agent_variations(
-            training_agent_winrate=training_agent_winrate,
+            training_agent_winrate=0.5,
             task=task,
             agent=training_agent,
-            opponent=opponent,
+            opponents=opponents,
             agent_position=agent_position,
             benchmarking_episodes=benchmarking_episodes,
             starting_episode=task.total_episodes_run,
@@ -171,34 +173,39 @@ def train_to_a_desired_winrate(task: 'Task',
             summary_writer=summary_writer)
 
         del trajectories # Off you go!
-
     logger.info('FINISHED training to reach {}. Total duration: {} seconds'.format(desired_winrate, time.time() - start_time))
 
 
+# TODO: refactor / merge this with "benchmark single agent"
 def train_for_given_iterations(task,
                                training_agent: 'Agent',
-                               opponent: 'Agent',
+                               opponents: List['Agent'],
                                agent_position: int,
                                training_episodes: int,
                                num_envs: int,
                                logger) -> List:
-    agent_vector = [opponent]
-    agent_vector.insert(agent_position, training_agent)
-    training_start = time.time()
-    trajectories = task.run_episodes(agent_vector,
-                                     training=True,
-                                     num_envs=num_envs,  # Max number of environments
-                                     num_episodes=training_episodes)
-    training_duration = time.time() - training_start
-    logger.info('Training for {} took {:.2} seconds'.format(
-                training_episodes, training_duration))
+    trajectories = []
+    opponent_indexes = [i for i in range(0, len(opponents))]
+    opponent_episodes = training_episodes // len(opponents)
+    random.shuffle(opponent_indexes)
+    for opponent_index in opponent_indexes:
+        agent_vector = [opponents[opponent_index]]
+        agent_vector.insert(agent_position, training_agent)
+        training_start = time.time()
+        trajectories += task.run_episodes(agent_vector,
+                                         training=True,
+                                         num_envs=num_envs,  # Max number of environments
+                                         num_episodes=opponent_episodes)
+        training_duration = time.time() - training_start
+        logger.info('Training for {} took {:.2} seconds'.format(
+                    opponent_episodes, training_duration))
     return trajectories
 
 
 def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: float,
                                                       task: Task,
                                                       agent: 'Agent',
-                                                      opponent: 'Agent',
+                                                      opponents: List['Agent'],
                                                       agent_position, benchmarking_episodes,
                                                       starting_episode: int,
                                                       save_path: str,
@@ -249,7 +256,7 @@ def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: fl
     #    vanilla_exit_winrate = training_agent_winrate
 
     # All agent variations have to compute this
-    apprentice_only_winrate = compute_apprentice_only_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger)
+    apprentice_only_winrate = compute_apprentice_only_winrate(task, agent, opponents, agent_position, benchmarking_episodes, logger)
     ## Return apprentice to train mode once more
     agent.apprentice.train()
 
@@ -268,7 +275,7 @@ def compute_and_log_winrates_for_all_agent_variations(training_agent_winrate: fl
     return apprentice_only_winrate
 
 
-def compute_apprentice_only_winrate(task, agent, opponent, agent_position, benchmarking_episodes, logger):
+def compute_apprentice_only_winrate(task, agent, opponents, agent_position, benchmarking_episodes, logger):
     apprentice_nn_agent = build_NeuralNet_Agent(
         task,
         {'neural_net': agent.apprentice,
@@ -277,7 +284,8 @@ def compute_apprentice_only_winrate(task, agent, opponent, agent_position, bench
     )
     apprentice_nn_winrate = benchmark_single_agent(
         agent=apprentice_nn_agent,
-        task=task, opponent=opponent,
+        task=task,
+        opponents=opponents,
         agent_position=agent_position,
         benchmarking_episodes=benchmarking_episodes,
         logger=logger,
@@ -293,7 +301,8 @@ def compute_learnt_opponent_model_winrate(task, agent, opponent, agent_position,
     # Compute winrates
     learnt_opponent_model_winrate = benchmark_single_agent(
         agent=learnt_opponent_model_agent,
-        task=task, opponent=opponent,
+        task=task,
+        opponents=opponent,
         agent_position=agent_position,
         benchmarking_episodes=benchmarking_episodes,
         logger=logger,
@@ -310,7 +319,8 @@ def compute_vanilla_exit_winrate(task, agent, opponent, agent_position, benchmar
     # Compute winrates
     vanilla_exit_winrate = benchmark_single_agent(
         agent=vanilla_exit,
-        task=task, opponent=opponent,
+        task=task,
+        opponents=opponent,
         agent_position=agent_position,
         benchmarking_episodes=benchmarking_episodes,
         logger=logger,
@@ -353,27 +363,32 @@ def log_winrate_metric(winrate: float, elapsed_episodes: int,
 
 
 def benchmark_single_agent(task: Task,
-                           agent: 'Agent', opponent: 'Agent',
-                           agent_position: int, benchmarking_episodes: int,
+                           agent: 'Agent',
+                           opponents: List['Agent'],
+                           agent_position: int,
+                           benchmarking_episodes: int,
                            caption: str,
                            logger) -> float:
     '''
     Obtains winrate of :param: agent playing in :param: agent_position vs
     :param: opponent in :param: task.
     '''
-    agent_vector = [opponent]
-    agent_vector.insert(agent_position, agent)
-    training_start = time.time()
-    trajectories = task.run_episodes(agent_vector, training=False,
-                                     num_envs=-1,  # Max number of environments
-                                     num_episodes=benchmarking_episodes)
-    benchmarking_time = time.time() - training_start
-    logger.info('Benchmarking for {} episodes for {} took {:.2} seconds'.format(
-                benchmarking_episodes, caption, benchmarking_time))
-
-    winrate = len(list(filter(lambda t: t.winner == agent_position,
-                              trajectories))) / len(trajectories)
-    return winrate
+    trajectories = []
+    opponent_indexes = [i for i in range(0, len(opponents))]
+    opponent_episodes = benchmarking_episodes // len(opponents)
+    random.shuffle(opponent_indexes)
+    for opponent_index in opponent_indexes:
+        agent_vector = [opponents[opponent_index]]
+        agent_vector.insert(agent_position, agent)
+        training_start = time.time()
+        trajectories += task.run_episodes(agent_vector,
+                                         training=True,
+                                         num_envs=-1,  # Max number of environments
+                                         num_episodes=opponent_episodes)
+        training_duration = time.time() - training_start
+        logger.info('Benchmarking {} for {} episodes took {:.2} seconds'.format(
+                    caption, opponent_episodes, training_duration))
+    return compute_winrates(trajectories)[agent_position]
 
 
 def save_trained_policy(trained_agent, save_path: str, logger):
@@ -385,19 +400,21 @@ def initialize_experiment(experiment_config, agents_config, args):
     task = create_task_from_config(experiment_config['environment'])
     agents = initialize_agents(task, agents_config)
 
-    test_agent = create_test_agent(args, task)
-    return task, agents, test_agent
+    test_agents = create_test_agents(args.opponents_path, task)
+    return task, agents, test_agents
 
-def create_test_agent(args, task) -> 'Agent':
-    test_agent = build_NeuralNet_Agent(
-        task,
-        {'neural_net': torch.load(args.opponent_path).algorithm.model,
-        'state_preprocess_fn': batch_vector_observation,  # For agents trained without framestacking
-        #'state_preprocess_fn': keep_last_stack_and_batch_vector_observation  # For agents trained with framestacking
-        },
-        f'TestAgent'
-    )
-    return test_agent
+def create_test_agents(opponents_path, task) -> 'Agent':
+    return [
+        build_NeuralNet_Agent(
+            task,
+            {'neural_net': torch.load(opponent_path).algorithm.model,
+            'state_preprocess_fn': batch_vector_observation,  # For agents trained without framestacking
+            #'state_preprocess_fn': keep_last_stack_and_batch_vector_observation  # For agents trained with framestacking
+            },
+            agent_name=opponent_path
+        )
+        for opponent_path in glob.glob(os.path.join(opponents_path, '*.pt'))
+    ]
 
 def create_task_from_config(environment_config):
     wrappers = create_wrappers(environment_config)
@@ -446,7 +463,7 @@ def load_agent_and_update_task(agent_directory_path: str, task) -> 'Agent':
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Trains Expert Iteration / Best Response Expert Iteration agents for experiments of paper "On Opponent Modelling in Expert Iteration"')
     parser.add_argument('--config', required=True, help='path to YAML config file containing info about environment and agents')
-    parser.add_argument('--opponent_path', required=True, help='Path to *.pt file containing an agent to train against (opponent)')
+    parser.add_argument('--opponents_path', required=True, help='Path to *.pt file containing an agent to train against (opponent)')
     parser.add_argument('--agent_index', required=False, default=None, help='Optional. Index of the agent that will be kept out of all of the agents specified in config file. Useful for batch jobs in SLURM settings')
     parser.add_argument('--run_id', required=True,
                         help='Identifier for the single_run that will be run. Ignoring number of runs in config file.')
@@ -460,7 +477,7 @@ if __name__ == "__main__":
     top_level_logger = logging.getLogger('BRExIt Opponent Modelling Experiment')
 
     exper_config, agents_config = load_configs(args.config)
-    task, agents, test_agent = initialize_experiment(exper_config, agents_config, args)
+    task, agents, test_agents = initialize_experiment(exper_config, agents_config, args)
 
     if (len(exper_config['algorithms']) > 1) and (args.agent_index is None):
         raise ValueError('More than one agent was specified. Use `agent_index` to select which one to use')
@@ -488,10 +505,10 @@ if __name__ == "__main__":
     create_directory_structure(base_path, agent)
     copyfile(args.config, f'{base_name}/config.yaml') # Copy config file over to results directory
 
-    train_against_fixed_agent(
+    train_against_fixed_agents(
         task,
         agent,
-        test_agent,
+        test_agents,
         base_path,
         args.run_id,
         exper_config,
