@@ -5,24 +5,24 @@ experiment:
   environment:
     name: 'Connect4-v0' 
     env_type: 'multiagent-sequential'
-  experiment_id: debug
-  training_episodes: 10000000
-  save_interval: 1000
+  experiment_id: 'fullhist_self_play_paper'
+  training_episodes: 1000000
+  save_interval: 10000
   self_play_training_schemes:
   - deltauniform
 
 # Neural net arch
 cnn_mlp_arch: &cnn_mlp_architecture
     phi_arch: 'CNN-MLP'
-    use_batch_normalization: True
+    use_batch_normalization: False
     preprocessed_input_dimensions: [7, 6]
-    channels: [3, 16, 64, 64]
-    kernel_sizes: [3, 3, 3]
-    paddings: [1, 1, 1]
-    strides: [1, 2, 1]
-    residual_connections: [[0,1], [2,3]]
-    final_feature_dim: 512
-    body_mlp_hidden_units: [256, 128]
+    channels: [3, 10, 20, 20, 20]
+    kernel_sizes: [3, 3, 3, 3]
+    paddings: [1, 1, 1, 1]
+    strides: [1, 1, 1, 1]
+    #residual_connections: [[0,1], [2,3]]
+    final_feature_dim: 256
+    body_mlp_hidden_units: [256, 128, 128]
 
 agents:
   ppo:
@@ -36,7 +36,7 @@ agents:
     gradient_clip: 1
     horizon: 512
     learning_rate: 0.0003
-    mini_batch_size: 256
+    mini_batch_size: 32
     optimization_epochs: 10
     ppo_ratio_clip: 0.2
     use_cuda: false
@@ -46,5 +46,4 @@ agents:
 self_play_training_schemes:
   deltauniform:
       delta: 0.0
-      save_every_n_episodes: 1
       save_after_policy_update: True

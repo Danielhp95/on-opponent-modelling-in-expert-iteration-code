@@ -13,10 +13,10 @@ experiment:
   environment:
     name: 'Connect4-v0' 
     env_type: 'multiagent-sequential'
-  experiment_id: '1st_december'
+  experiment_id: 'multiagent_10th_jan'
   desired_winrate: 0.50
   # ideally, a multiple of policy updates. Param :games_per iteration:
-  training_episodes: 3
+  training_episodes: 800
   benchmarking_episodes: 100
 
 
@@ -50,7 +50,7 @@ agents:
     increase_memory_every_n_generations: 5
     final_max_generations_in_memory: 200  # We won't achieve values this high
     # MCTS config
-    mcts_budget: 1
+    mcts_budget: 50
     mcts_rollout_budget: 0
     mcts_exploration_factor: 2
     mcts_use_dirichlet: False

@@ -79,13 +79,17 @@ def run(test_agents_internal_benchmark_path: str,
                    description_key='description 1',
                    plot_func=partial(plot_winrate_matrix_and_support,
                                      test_agents_internal_results['winrate_matrix_test_agents'],
-                                     test_agents_internal_results['maxent_nash_test_agents']))
+                                     test_agents_internal_results['maxent_nash_test_agents']),
+                   save_path=f'{save_dir}/test_agents_winrate_matrix.png'
+                   )
 
     plot_component(title='# Plot: MCTS equivalent strength for Test agents',
                    description=descriptions.mcts_equivalent_strength_test_agents,
                    description_key='description 3',
                    plot_func=partial(plot_mcts_equivalent_strength,
-                                     test_agents_mcts_strength_df))
+                                     test_agents_mcts_strength_df),
+                   save_path=f'{save_dir}/test_agents_mcts_equivalent_strengths.png'
+                   )
 
     (parsed_winrates_df_test1, filtered_winrates_df_test1,
     parsed_winrates_df_test2, filtered_winrates_df_test2,
@@ -517,9 +521,10 @@ def parse_single_algorithm_and_run_df_from_path(path: str,
 
 
 def plot_winrate_matrix(ax, winrate_matrix: np.ndarray):
-    sns.heatmap(winrate_matrix, annot=False, ax=ax, square=True,
+    sns.heatmap(winrate_matrix, ax=ax, square=True,
                 cmap=sns.color_palette('coolwarm', 50)[::-1],
                 vmin=0.0, vmax=1.0, cbar=False,
+                annot=True,
                 cbar_kws={'label': 'Head to head winrates'})
     ax.set_xlabel('Agent ID')
     ax.set_ylabel('Agent ID')
@@ -589,10 +594,10 @@ def plot_mcts_equivalent_strength(dfs: pd.DataFrame):
     ax.text(s='Target winrate', x=20, y=0.8 + 0.02, fontsize='x-large')
     # Add title and ticks
     ax.set_ylabel('Winrate', fontsize='xx-large')
-    ax.set_xlabel('MCTS iteration budget', fontsize='medium')
+    ax.set_xlabel('MCTS iteration budget', fontsize='xx-large')
     ax.set_xticks([i for i in range(15, 101, 5)])
     ax.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])
-    ax.set_xticklabels(ax.get_xticks(), fontsize='xx-large')
+    ax.set_xticklabels(ax.get_xticks(), fontsize='x-large')
     ax.set_yticklabels(ax.get_yticks(), fontsize='xx-large')
     ax.legend(title='Trained episodes', title_fontsize='x-large', fontsize='xx-large', loc='lower right')
     return fig
