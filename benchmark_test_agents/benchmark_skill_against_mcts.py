@@ -33,7 +33,7 @@ def estimate_mcts_equivalent_strength(agent: regym.rl_algorithms.agents.Agent,
                                       initial_mcts_config: Dict,
                                       max_budget: int=2000,
                                       budget_step: int=1,
-                                      benchmarking_episodes: int = 200,
+                                      benchmarking_episodes: int = 1000,
                                       show_progress: bool=False) \
                                       -> Tuple[int, pd.DataFrame]:
     '''
@@ -99,12 +99,12 @@ def estimate_mcts_equivalent_strength(agent: regym.rl_algorithms.agents.Agent,
         if show_progress:
             logger.info(f'WINRATES: Total = {trained_agent_avg_winrate}\tPos 0 = {winrates_1[0]}\t Pos 1 = {winrates_2[1]}')
 
-        if trained_agent_avg_winrate < desired_winrate:
+        if df_pos_1['victories'].mean() < desired_winrate:
             return budget, pd.concat(dfs)
 
 
 def main(population: List['Agent'], task, winrate_threshold: float, logger) -> pd.DataFrame:
-    initial_mcts_config = {'budget': 10, 'rollout_budget': 100,
+    initial_mcts_config = {'budget': 10, 'rollout_budget': 500,
                            'selection_phase': 'ucb1',
                            'exploration_factor_ucb1': 1.41,
                            'use_dirichlet': False,

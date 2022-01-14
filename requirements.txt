@@ -1,0 +1,14 @@
+loguru
+streamlit
+seaborn
+matplotlib
+torch
+tensorboard
+rliable
+scipy
+pandas
+numpy
+gym_connect4
+torch
+dill
+git+https://github.com/danielhp95/regym@master#egg=regym

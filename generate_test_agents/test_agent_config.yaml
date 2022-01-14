@@ -5,19 +5,18 @@ experiment:
   environment:
     name: 'Connect4-v0' 
     env_type: 'multiagent-sequential'
-    frame_stack: 4
   experiment_id: debug
   training_episodes: 10000000
-  save_interval: 20
+  save_interval: 1000
   self_play_training_schemes:
   - deltauniform
 
 # Neural net arch
 cnn_mlp_arch: &cnn_mlp_architecture
     phi_arch: 'CNN-MLP'
-    use_batch_normalization: False
+    use_batch_normalization: True
     preprocessed_input_dimensions: [7, 6]
-    channels: [12, 32, 64, 64]
+    channels: [3, 16, 64, 64]
     kernel_sizes: [3, 3, 3]
     paddings: [1, 1, 1]
     strides: [1, 2, 1]
@@ -34,17 +33,18 @@ agents:
     discount: 0.99
     entropy_weight: 0.01
     gae_tau: 0.95
-    gradient_clip: 5
-    horizon: 2048
+    gradient_clip: 1
+    horizon: 512
     learning_rate: 0.0003
     mini_batch_size: 256
     optimization_epochs: 10
     ppo_ratio_clip: 0.2
     use_cuda: false
     use_gae: true
-    state_preprocess_fn: 'turn_into_single_element_batch_and_flatten_last_dim'
+    state_preprocess_fn: 'turn_into_single_element_batch'
 
 self_play_training_schemes:
   deltauniform:
       delta: 0.0
-      save_every_n_episodes: 10
+      save_every_n_episodes: 1
+      save_after_policy_update: True

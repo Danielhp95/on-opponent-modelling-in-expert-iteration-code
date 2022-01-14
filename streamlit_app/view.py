@@ -1,8 +1,6 @@
 from typing import Callable, Tuple
 import pickle
-from copy import deepcopy
 import os
-import sys
 import argparse
 from functools import partial
 from itertools import chain
@@ -14,73 +12,56 @@ import streamlit as st
 import pandas as pd
 from loguru import logger
 
+from scipy.stats import ks_2samp
+
 import descriptions
 
 
-def data_directory_selection_sidebar_widget(path: str):
-    selected_results_directory = st.sidebar.text_input('Select results directory',
-                                                       path)
-    display_selected_directory(selected_results_directory)
-    return selected_results_directory
-
-
-def display_selected_directory(selected_dir: str):
-    if st.sidebar.checkbox(f'List files in directory {selected_dir} '):
-        for f in os.listdir(selected_dir): st.sidebar.markdown(f)
-
-
-@st.cache
-def load_results(results_dir: str):
+def load_test_agent_results(test_agents_internal_benchmark_path: str, test_agents_mcts_strength_path: str):
     def load_file(base_path: str, path: str):
         file_path = f'{base_path}/{path}'
         if os.path.exists(file_path): return np.loadtxt(file_path, delimiter=', ')
         else: raise FileNotFoundError(f'File {file_path} should exist')
 
-    results = dict()
-    results['winrate_matrix_test_agents'] = load_file(results_dir, 'winrate_matrix_test_agents.csv')
-    results['maxent_nash_test_agents'] = load_file(results_dir, 'maxent_nash_test_agents.csv')
+    test_agents_internal = dict()
+    test_agents_internal['winrate_matrix_test_agents'] = load_file(test_agents_internal_benchmark_path, 'winrate_matrix.csv')
+    test_agents_internal['maxent_nash_test_agents'] = load_file(test_agents_internal_benchmark_path, 'maxent_nash.csv')
 
-    results['evolution_nash_averaging_test_agents'] = load_file(results_dir, 'evolution_nash_averaging_test_agents.csv')
-
-    results['winrate_matrix_mcts'] = load_file(results_dir, 'winrate_matrix_mcts.csv')
-    results['maxent_nash_mcts'] = load_file(results_dir, 'maxent_nash_test_agents.csv')
-
-    results['mcts_equivalent_strength_test_agents'] = load_file(results_dir, 'mcts_equivalent_strength_test_agents.csv')
-
-    results['winrate_matrix_test_agents_and_mcts'] = load_file(results_dir, 'winrate_matrix_test_agents_and_mcts.csv')
-    results['maxent_nash_test_agents_and_mcts'] = load_file(results_dir, 'maxent_nash_test_agents.csv')
-    return results
+    df1 = pd.read_csv(f'{test_agents_mcts_strength_path}/weak_mcts_equivalent_strenght_estimation_df.csv')
+    df2 = pd.read_csv(f'{test_agents_mcts_strength_path}/medium_mcts_equivalent_strenght_estimation_df.csv')
+    df3 = pd.read_csv(f'{test_agents_mcts_strength_path}/strong_mcts_equivalent_strenght_estimation_df.csv')
+    df1['training'], df2['training'], df3['training'] = '200k', '400k', '600k'
+    test_agents_mcts_strength_df = pd.concat([df1, df2, df3])
+    return test_agents_internal, test_agents_mcts_strength_df
 
 
-def run(path: str,
+def run(test_agents_internal_benchmark_path: str,
+        test_agents_mcts_strength_path: str,
         path_1: str, path_2: str, path_3: str,
-        path_1_one_hot: str, path_2_one_hot: str, path_3_one_hot: str):
-    def plot_component(checkbox_ticked: bool, title: str, description: str,
-                       description_key: str, plot_func: Callable):
-        if checkbox_ticked:
-            st.markdown(title)
-            show_description = st.checkbox('Show description', key=description_key)
-            if show_description:
-                st.markdown(description)
-            fig = plot_func()
-            plt.tight_layout()
-            st.pyplot(fig)
+        path_1_one_hot: str, path_2_one_hot: str, path_3_one_hot: str,
+        path_multiple: str, path_multiple_one_hot: str,
+        save_dir: str):
+    def plot_component(title: str, description: str,
+                       description_key: str,
+                       plot_func: Callable,
+                       save_path: str=None):
+        st.markdown(title)
+        show_description = st.checkbox('Show description', key=description_key)
+        if show_description:
+            st.markdown(description)
+        fig = plot_func()
+        plt.tight_layout()
+        if save_path: plt.savefig(save_path)
+        st.pyplot(fig)
 
-    results_dir = data_directory_selection_sidebar_widget(path)
+    test_agents_internal_benchmark_path = st.text_input('Select results directory for test benchmarking data', test_agents_internal_benchmark_path)
+    test_agents_mcts_strength_path = st.text_input('Select results directory for test benchmarking data', test_agents_mcts_strength_path)
 
-    results = load_results(results_dir)
-
-    # SIDEBAR
-    st.sidebar.markdown('## Plots to show:')
-    st.sidebar.markdown('Test agents')
-    show_winrate_matrix_test_agents = st.sidebar.checkbox('Winrate matrix for test agents', True)
-    show_nash_averaging_evolution_test_agents = st.sidebar.checkbox('Evolution Nash avg test agents', True)
-    st.sidebar.markdown('MCTS evaluation for Test agents')
-    show_plot_mcts_equivalent_test_agents = st.sidebar.checkbox('MCTS equivalent of test agents', True)
-    show_winrate_matrix_mcts = st.sidebar.checkbox('Winrate matrix for MCTS agents', True)
-    st.sidebar.markdown('Combined MCTS & Test agents')
-    show_winrate_matrix_mcts_and_test_agents = st.sidebar.checkbox('Winrate matrix MCTS & Test agents', True)
-    st.sidebar.markdown('Training time till apprentice convergence.')
+    (test_agents_internal_results,
+     test_agents_mcts_strength_df) = load_test_agent_results(
+         test_agents_internal_benchmark_path,
+         test_agents_mcts_strength_path
+     )
 
     path_1 = st.text_input('Select results directory 1', path_1)
     path_2 = st.text_input('Select results directory 2', path_2)
@@ -88,48 +69,23 @@ def run(path: str,
     path_1_one_hot = st.text_input('Select results directory 1 one hot', path_1_one_hot)
     path_2_one_hot = st.text_input('Select results directory 2 one hot', path_2_one_hot)
     path_3_one_hot = st.text_input('Select results directory 3 one hot', path_3_one_hot)
+    path_multiple = st.text_input('Select results directory multiple test agents', path_multiple)
 
-    show_convergence_times = st.sidebar.checkbox('Convergence times', True)
-    winrate_threshold = st.sidebar.slider(label='Winrate threshold for convergence',
-                                          min_value=0., max_value=1., step=0.01, value=0.5)
+    # Used to be a slider, but we now set at at the value from the publication.
+    winrate_threshold = 0.5
 
-    #plot_component(show_winrate_matrix_test_agents,
-    #               title='# Winrate matrix: Test agents',
-    #               description=descriptions.winrate_matrix_test_agents,
-    #               description_key='description 1',
-    #               plot_func=partial(plot_winrate_matrix_and_support,
-    #                                 results['winrate_matrix_test_agents'],
-    #                                 results['maxent_nash_test_agents']))
+    plot_component(title='# Winrate matrix: Test agents',
+                   description=descriptions.winrate_matrix_test_agents,
+                   description_key='description 1',
+                   plot_func=partial(plot_winrate_matrix_and_support,
+                                     test_agents_internal_results['winrate_matrix_test_agents'],
+                                     test_agents_internal_results['maxent_nash_test_agents']))
 
-    #plot_component(show_nash_averaging_evolution_test_agents,
-    #               title='# Evolution of Nash averaging: Test agents',
-    #               description=descriptions.nash_averaging_evolutions_test_agents,
-    #               description_key='description 2',
-    #               plot_func=partial(plot_nash_averaging_evolution_test_agents,
-    #                                 results['evolution_nash_averaging_test_agents']))
-
-    #plot_component(show_plot_mcts_equivalent_test_agents,
-    #               title='# Plot: MCTS equivalent strength for Test agents',
-    #               description=descriptions.mcts_equivalent_strength_test_agents,
-    #               description_key='description 3',
-    #               plot_func=partial(plot_mcts_equivalent_strength,
-    #                                 results['mcts_equivalent_strength_test_agents']))
-
-    #plot_component(show_winrate_matrix_mcts,
-    #               title='# Winrate matrix: MCTS agents',
-    #               description=descriptions.winrate_matrix_mcts_agents,
-    #               description_key='description 4',
-    #               plot_func=partial(plot_winrate_matrix_and_support,
-    #                                 results['winrate_matrix_test_agents'],
-    #                                 results['maxent_nash_mcts']))
-
-    #plot_component(show_winrate_matrix_mcts,
-    #               title='# Winrate matrix: MCTS & Test agents',
-    #               description=descriptions.winrate_matrix_mcts_and_test_agents,
-    #               description_key='description 5',
-    #               plot_func=partial(plot_winrate_matrix_mcts_and_test_agents,
-    #                                 results['winrate_matrix_test_agents_and_mcts'],
-    #                                 results['maxent_nash_test_agents_and_mcts']))
+    plot_component(title='# Plot: MCTS equivalent strength for Test agents',
+                   description=descriptions.mcts_equivalent_strength_test_agents,
+                   description_key='description 3',
+                   plot_func=partial(plot_mcts_equivalent_strength,
+                                     test_agents_mcts_strength_df))
 
     (parsed_winrates_df_test1, filtered_winrates_df_test1,
     parsed_winrates_df_test2, filtered_winrates_df_test2,
@@ -137,54 +93,92 @@ def run(path: str,
     parsed_winrates_df_test1_one_hot, filtered_winrates_df_test1_one_hot,
     parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot,
     parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot,
+    parsed_winrates_df_multiple, filtered_winrates_df_multiple,
+    #parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot,
     all_filtered_winrates, all_parsed_winrates) = \
         load_and_process_df_against_fixed_agent(
-            path_1, path_2, path_3, path_1_one_hot, path_2_one_hot, path_3_one_hot,
+            path_1, path_2, path_3, path_1_one_hot, path_2_one_hot, path_3_one_hot, path_multiple, path_multiple_one_hot,
             winrate_threshold
         )
 
-    plot_component(True,  # whether to show or not
-                   title='# Full distribution VS Weak test agent',
+    plot_component(title='## Full distribution VS Weak test agent',
                    description=descriptions.apprentice_convergence,
                    description_key='description 7',
-                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test1, filtered_winrates_df_test1, winrate_threshold))
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test1, filtered_winrates_df_test1, winrate_threshold),
+                   save_path=f'{save_dir}/full_vs_weak.png'
+    )
 
-    plot_component(checkbox_ticked=True, title='# Full distribution VS Medium test agent',
+    plot_component(title='## Full distribution VS Medium test agent',
                    description=descriptions.apprentice_convergence, description_key='description 8',
-                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test2, filtered_winrates_df_test2, winrate_threshold))
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test2, filtered_winrates_df_test2, winrate_threshold),
+                   save_path=f'{save_dir}/full_vs_medium.png'
+    )
 
-    plot_component(checkbox_ticked=True, title='# Full distribution VS Strong test agent',
+    plot_component(title='## Full distribution VS Strong test agent',
                    description=descriptions.apprentice_convergence, description_key='description 9',
-                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test3, filtered_winrates_df_test3, winrate_threshold))
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test3, filtered_winrates_df_test3, winrate_threshold),
+                   save_path=f'{save_dir}/full_vs_strong.png'
+    )
 
-    plot_component(checkbox_ticked=True, title='# One Hot VS Weak test agent',
+    plot_component(title='## One Hot VS Weak test agent',
                    description=descriptions.apprentice_convergence, description_key='description 10',
-                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test1_one_hot, filtered_winrates_df_test1_one_hot, winrate_threshold, True))
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test1_one_hot, filtered_winrates_df_test1_one_hot, winrate_threshold, True),
+                   save_path=f'{save_dir}/oh_vs_weak.png'
+    )
 
-    plot_component(checkbox_ticked=True, title='# One Hot VS Medium test agent',
+    plot_component(title='## One Hot VS Medium test agent',
                    description=descriptions.apprentice_convergence, description_key='description 11',
-                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot, winrate_threshold, True))
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot, winrate_threshold, True),
+                   save_path=f'{save_dir}/oh_vs_medium.png'
+    )
 
-    plot_component(checkbox_ticked=True, title='# One Hot VS Strong test agent',
+    plot_component(title='## One Hot VS Strong test agent',
                    description=descriptions.apprentice_convergence, description_key='description 12',
-                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot, winrate_threshold, True))
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot, winrate_threshold, True),
+                   save_path=f'{save_dir}/oh_vs_strong.png'
+    )
+    plot_component(title='## Full distribution VS All test agents',
+                   description=descriptions.apprentice_convergence, description_key='description 13',
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_multiple, filtered_winrates_df_multiple, winrate_threshold),
+                   save_path=f'{save_dir}/full_vs_multiple.png'
+    )
 
-    plot_component(True,  # whether to show or not
-                   title=f'# Comparison of convergence time to {winrate_threshold}%',
+    plot_component(title=f'## Comparison of convergence time to {winrate_threshold}%',
                    description='TODO',
                    description_key='description 1333',
                    plot_func=partial(plot_convergence_bar_plot_comparison,
-                                     all_filtered_winrates))
+                                     all_filtered_winrates),
+                   save_path=f'{save_dir}/all_algorithms_ablation.png'
+    )
 
-    #plot_component(True,  # whether to show or not
-    #               title=f'# Probability of improvement',
-    #               description='TODO',
-    #               description_key='description 69',
-    #               plot_func=partial(plot_rliable_probability_of_improvement,
-    #                                 all_parsed_winrates))
+    plot_component(title=f'## Probability of improvement',
+                   description='TODO',
+                   description_key='description 69',
+                   plot_func=partial(plot_rliable_probability_of_improvement,
+                                     all_parsed_winrates),
+                   save_path=f'{save_dir}/probability_of_improvement.png'
+    )
+
+    st.markdown('## Kormogorov-Smirnov tests: Distributional targets vs One hot encoded targets')
+    st.markdown('### Values bigger than 0.05 mean that results come from the same underlying distribution')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Weak')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Weak')
+    carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Weak')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Medium')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Medium')
+    carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Medium')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Strong')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Strong')
+    carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Strong')
+    #carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Multiple')
+    #carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Multiple')
+    #carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Multiple')
 
 
-def load_and_process_df_against_fixed_agent(path_1, path_2, path_3, path_1_one_hot, path_2_one_hot, path_3_one_hot, winrate_threshold):
+def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
+                                            path_1_one_hot, path_2_one_hot, path_3_one_hot,
+                                            path_multiple, path_multiple_one_hot,
+                                            winrate_threshold):
     logger.info('Processing winrate data for Test agent 1. Full distribution')
     parsed_winrates_df_test1, filtered_winrates_df_test1 = process_winrates_from_path_and_threshold(path_1, winrate_threshold)
     logger.info('Processing winrate data for Test agent 2. Full distribution')
@@ -197,15 +191,21 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3, path_1_one_h
     parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot = process_winrates_from_path_and_threshold(path_2_one_hot, winrate_threshold, is_one_hot=True)
     logger.info('Processing winrate data for Test agent 3. One hot')
     parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot = process_winrates_from_path_and_threshold(path_3_one_hot, winrate_threshold, is_one_hot=True)
+    logger.info('Processing winrate data for multiple test agents')
+    parsed_winrates_df_multiple, filtered_winrates_df_multiple = process_winrates_from_path_and_threshold(path_multiple, winrate_threshold)
+    #logger.info('Processing winrate data for multiple test agents. One hot')
+    #parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot = process_winrates_from_path_and_threshold(path_multiple_one_hot, winrate_threshold, is_one_hot=True)
     ###
 
     # Adding info about which opponent these agents trained against
-    filtered_winrates_df_test1['test_agent'] = 'weak'
-    filtered_winrates_df_test2['test_agent'] = 'medium'
-    filtered_winrates_df_test3['test_agent'] = 'strong'
-    filtered_winrates_df_test1_one_hot['test_agent'] = 'weak'
-    filtered_winrates_df_test2_one_hot['test_agent'] = 'medium'
-    filtered_winrates_df_test3_one_hot['test_agent'] = 'strong'
+    filtered_winrates_df_test1['test_agent'] = 'Weak'
+    filtered_winrates_df_test2['test_agent'] = 'Medium'
+    filtered_winrates_df_test3['test_agent'] = 'Strong'
+    filtered_winrates_df_test1_one_hot['test_agent'] = 'Weak'
+    filtered_winrates_df_test2_one_hot['test_agent'] = 'Medium'
+    filtered_winrates_df_test3_one_hot['test_agent'] = 'Strong'
+    filtered_winrates_df_multiple['test_agent'] = 'Multiple'
+    #filtered_winrates_df_multiple_one_hot['test_agent'] = 'Multiple'
 
     ###
     all_filtered_winrates = pd.concat(
@@ -214,15 +214,19 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3, path_1_one_h
      filtered_winrates_df_test3,
      filtered_winrates_df_test1_one_hot,
      filtered_winrates_df_test2_one_hot,
-     filtered_winrates_df_test3_one_hot
+     filtered_winrates_df_test3_one_hot,
+     filtered_winrates_df_multiple,
+     #filtered_winrates_df_multiple_one_hot,
     ])
     all_parsed_winrates = pd.concat(
-    [filtered_winrates_df_test1,
-     filtered_winrates_df_test2,
-     filtered_winrates_df_test3,
-     filtered_winrates_df_test1_one_hot,
-     filtered_winrates_df_test2_one_hot,
-     filtered_winrates_df_test3_one_hot
+    [parsed_winrates_df_test1,
+     parsed_winrates_df_test2,
+     parsed_winrates_df_test3,
+     parsed_winrates_df_test1_one_hot,
+     parsed_winrates_df_test2_one_hot,
+     parsed_winrates_df_test3_one_hot,
+     parsed_winrates_df_multiple,
+     #parsed_winrates_df_multiple_one_hot,
     ])
 
     return (parsed_winrates_df_test1, filtered_winrates_df_test1,
@@ -231,6 +235,8 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3, path_1_one_h
            parsed_winrates_df_test1_one_hot, filtered_winrates_df_test1_one_hot,
            parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot,
            parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot,
+           parsed_winrates_df_multiple, filtered_winrates_df_multiple,
+           #parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot,
            all_filtered_winrates, all_parsed_winrates)
 
 
@@ -240,18 +246,36 @@ def plot_convergence_bar_plot_comparison(all_filtered_winrates_df: pd.DataFrame)
     fig, ax = plt.subplots(1, 1)
 
     all_filtered_winrates_df = all_filtered_winrates_df.copy()
+    #all_filtered_winrates_df = all_filtered_winrates_df.drop(all_filtered_winrates_df[all_filtered_winrates_df['algorithm'].str.contains('OH')].index)
     all_filtered_winrates_df['algorithm'] = pd.Categorical(
         all_filtered_winrates_df['algorithm'],
-        categories=['BRExIt-OMS-OH', 'BRExIt-OMS', 'BRExIt-OH', 'BRExIt',  'ExIt', 'ExIt-OMFS-OH', 'ExIt-OMFS'],
+        categories=['BRExIt', 'BRExIt-OH', 'BRExIt-OMS', 'BRExIt-OMS-OH', 'ExIt-OMFS', 'ExIt-OMFS-OH'],
         ordered=True
     )
 
-    ax = sns.barplot(y='elapsed_episodes', x='test_agent', hue='algorithm',
+    ax = sns.barplot(y='elapsed_episodes',
+                     x='test_agent',
+                     hue='algorithm',
                      data=all_filtered_winrates_df,
-                     ax=ax)
+                     ax=ax,
+                     palette='colorblind',
+                     )
+    ax.set_ylabel('Elapsed episodes', fontsize='x-large')
+    ax.set_xlabel('Test agent', fontsize='x-large')
+    ax.set_yticklabels(map(lambda x: f'${int(x / 1000)}e^3$', ax.get_yticks()),
+                       fontsize='medium')
+    # We are changing the labels here because we want "strong, medium, weak"
+    # To correspond to the mcts_equivalent_strength, not with the training time.
+    ax.set_xticklabels(['Strong', 'Medium', 'Weak', 'Multiple'], fontsize='x-large')
     #plt.legend(bbox_to_anchor=(0., 1.15), loc='upper left', borderaxespad=0, ncol=3)
     plt.legend(bbox_to_anchor=(1., 1.), loc='upper right', borderaxespad=0, ncol=2)
     return fig
+
+def carry_ks_2samp(df, alg_name, test_agent):
+    data1 = df[(df['algorithm'] == alg_name) & (df['test_agent'] == test_agent)].elapsed_episodes.to_list()
+    data2 = df[(df['algorithm'] == alg_name + '-OH') & (df['test_agent'] == test_agent)].elapsed_episodes.to_list()
+    results = ks_2samp(data1, data2)
+    st.text(f'Algorithm: {alg_name} Test agent: {test_agent}. P-value: {results.pvalue}')
 
 
 def plot_winrate_progression(parsed_winrates_df: pd.DataFrame,
@@ -269,26 +293,25 @@ def plot_winrate_progression(parsed_winrates_df: pd.DataFrame,
     if is_one_hot:
         parsed_winrates_df['algorithm'] = pd.Categorical(
             parsed_winrates_df['algorithm'],
-            categories=['BRExIt-OMS-OH', 'BRExIt-OH', 'ExIt-OMFS-OH'],
+            categories=['BRExIt-OH', 'BRExIt-OMS-OH', 'ExIt-OMFS-OH'],
             ordered=True
         )
         filtered_winrates_df['algorithm'] = pd.Categorical(
             filtered_winrates_df['algorithm'],
-            categories=['BRExIt-OMS-OH', 'BRExIt-OH', 'ExIt-OMFS-OH'],
+            categories=['BRExIt-OH', 'BRExIt-OMS-OH', 'ExIt-OMFS-OH'],
             ordered=True
         )
     else:
         parsed_winrates_df['algorithm'] = pd.Categorical(
             parsed_winrates_df['algorithm'],
-            categories=['BRExIt-OMS', 'BRExIt',  'ExIt', 'ExIt-OMFS'],
+            categories=['BRExIt', 'BRExIt-OMS',  'ExIt', 'ExIt-OMFS'],
             ordered=True
         )
         filtered_winrates_df['algorithm'] = pd.Categorical(
             filtered_winrates_df['algorithm'],
-            categories=['BRExIt-OMS', 'BRExIt',  'ExIt', 'ExIt-OMFS'],
+            categories=['BRExIt', 'BRExIt-OMS',  'ExIt', 'ExIt-OMFS'],
             ordered=True
         )
-
 
     ax2 = sns.lineplot(
         x='elapsed_episodes',
@@ -296,14 +319,17 @@ def plot_winrate_progression(parsed_winrates_df: pd.DataFrame,
         hue='algorithm',
         style='algorithm',
         data=parsed_winrates_df.sort_values('algorithm'),
-        ax=ax2
+        ax=ax2,
+        palette='colorblind'
     )
-
     ## Draw line at target winrate
     ax2.axhline(winrate_threshold, color='black')
-    #ax2.text(s='Target', x=300, y=winrate_threshold +0.02)
+    ax2.text(s='Target', x=300, y=winrate_threshold +0.02, fontsize='x-large')
 
+    ax2.set_xticks(range(0, int(filtered_winrates_df.elapsed_episodes.max()) + 1, 5000))
+    ax2.set_xticklabels(ax2.get_xticks(), fontsize='large')
     #### Adding tick next to winrate threshold
+    ax2.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
     yt = ax2.get_yticks()
     yt = np.append(yt, winrate_threshold)
     yt = np.around(yt, 2)
@@ -312,15 +338,19 @@ def plot_winrate_progression(parsed_winrates_df: pd.DataFrame,
     ytl = yt.tolist()
     ytl[-1] = winrate_threshold
     ax2.set_yticks(yt)
-    ax2.set_yticklabels(ytl)
+    ax2.set_yticklabels(ytl, fontsize='x-large')
+    ax2.set_ylabel('Winrate', fontsize='x-large')
+    ax2.set_xlabel('Elapsed episodes', fontsize='x-large')
     ####
 
-    ax2.legend(bbox_to_anchor=(1.0, 1.65),borderaxespad=0)
+    ax2.legend(bbox_to_anchor=(1.0, 1.65),borderaxespad=0, fontsize='large')
 
     ax1 = sns.barplot(x='elapsed_episodes', y='algorithm',
                       data=filtered_winrates_df, ax=ax1,
+                      palette='colorblind',
                       orient='h')
-    #ax1.set_yticklabels([''] * len(filtered_winrates_df['algorithm'].unique()))  # Remove long names
+    ax1.set_ylabel('Algorithm', fontsize='x-large')
+    ax1.set_yticklabels([''] * len(filtered_winrates_df['algorithm'].unique()))  # Remove long names
     return fig
 
 
@@ -382,11 +412,10 @@ def plot_rliable_probability_of_improvement(df: pd.DataFrame):
     from rliable.plot_utils import plot_probability_of_improvement
     from rliable import metrics
 
-    #def extract_numpy_score_matrix(algorithm_name):
     #    return np.array([
-    #        df[(df['test_agent'] == 'weak') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
-    #        df[(df['test_agent'] == 'medium') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
-    #        df[(df['test_agent'] == 'strong') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+    #        df[(df['test_agent'] == 'Weak') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+    #        df[(df['test_agent'] == 'Medium') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+    #        df[(df['test_agent'] == 'Strong') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
     #    ]) * -1  # We multiply by -1 because we care about which algorithm takes _less_ time
     #             # Whereas rliable cares about maximizing values
 
@@ -412,6 +441,10 @@ def plot_rliable_probability_of_improvement(df: pd.DataFrame):
     probability_estimates = pickle.load(open('probability_estimates.pickle', 'rb'))
     probability_confidence_intervals = pickle.load(open('probability_confidence_intervals.pickle', 'rb'))
     fig, ax = plt.subplots(1, 1)
+    for key, value in list(probability_estimates.items()):
+        if "OH" in key:
+            probability_estimates.pop(key)
+            probability_confidence_intervals.pop(key)
     ax = plot_probability_of_improvement(probability_estimates, probability_confidence_intervals, ax=ax)
     return fig
 
@@ -501,7 +534,6 @@ def plot_winrate_matrix_and_support(winrate_matrix: np.ndarray, nash_support: np
     plot_nash_support(ax[1], nash_support, column=True)
 
     plt.subplots_adjust(wspace=0, hspace=0)
-
     return fig
 
 
@@ -524,70 +556,6 @@ def plot_nash_support(ax, nash: np.ndarray,
     ax.set_ylim(len(nash) + 0.2, -0.2)
 
 
-def plot_nash_averaging_evolution_test_agents(evolution_nash_averaging_test_agents: np.ndarray):
-    fig, ax = plt.subplots(1, 1)
-    # Only show lower triangular
-
-    ### Preprocessing to print only lower matrix
-    mask = np.zeros_like(evolution_nash_averaging_test_agents, dtype=np.bool)
-    mask[np.triu_indices_from(mask, k=1)] = True
-    ###
-
-    axx = sns.heatmap(evolution_nash_averaging_test_agents, vmax=1.0, vmin=0.0, ax=ax,
-                mask=mask,
-                cmap=sns.color_palette('coolwarm', 50)[::-1],
-                cbar_kws={'label': 'Support under Nash'},
-                annot=False, annot_kws={'size': 10})
-
-    # Workaround to prevent top and bottom of heatmaps to be cutoff
-    # This is a known matplotlib bug
-    ax.set_ylim(len(evolution_nash_averaging_test_agents) + 0.2, -0.2)
-
-    ax.set_xlabel(xlabel='Agent ID', fontdict={'fontsize': 20})
-    ax.set_ylabel(ylabel='benchmarking round', fontdict={'fontsize': 20})
-    ax.set_title(label='Progression of Nash equilibrium during training', fontdict={'fontsize': 20})
-
-    return fig
-
-
-def plot_mcts_equivalent_strength(mcts_equivalent_strength: np.ndarray):
-    test_agent_processed_timesteps = mcts_equivalent_strength[:, 0]
-    test_agent_processed_timesteps = [int(x) for x in test_agent_processed_timesteps]
-    mcts_equivalent_strengths = mcts_equivalent_strength[:, 1]
-
-    fig, ax = plt.subplots(1, 1)
-    ax = sns.lineplot(test_agent_processed_timesteps, mcts_equivalent_strengths,
-                      dashes=True, marker='o', ax=ax)
-    ax.set_xticks(test_agent_processed_timesteps)
-    ax.set_xticklabels(test_agent_processed_timesteps, rotation=90, ha='center')
-    ax.set_title('MCTS equivalent strength for Test agents')
-    ax.set_xlabel('Test agent processed timesteps')
-    ax.set_ylabel('MCTS budget')
-    st.pyplot(fig)
-
-
-def plot_winrate_matrix_mcts_and_test_agents(winrate_matrix: np.ndarray, nash_support: np.ndarray):
-    fig, ax = plt.subplots(nrows=1, ncols=2, gridspec_kw={'width_ratios': [15, 1]})
-    plot_winrate_matrix(ax[0], winrate_matrix)
-    plot_nash_support(ax[1], nash_support, column=True)
-    add_population_delimiting_lines(axes=ax, length=len(winrate_matrix))
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-
-    return fig
-
-
-def add_population_delimiting_lines(axes, length, number_populations=2):
-    for i_delimiter in range(0, length,
-                             int(length / number_populations)):
-        axes[0].vlines(x=i_delimiter, ymin=0, ymax=length,
-                     color='lime', lw=1.5)
-        axes[0].hlines(y=i_delimiter, xmin=0, xmax=length,
-                     color='lime', lw=1.5)
-        axes[1].hlines(y=i_delimiter, xmin=0, xmax=length,
-                     color='lime', lw=2)
-
-
 def rename(name):
     shorter_name = name.split('expert_iteration_')[1].split('_800')[0]  # 800 is the MCTS budget in the name
     rename_dict = {
@@ -596,6 +564,38 @@ def rename(name):
         'brexit_true_models': 'BRExIt',
         'vanilla': 'ExIt'}
     return rename_dict[shorter_name]
+
+
+def plot_mcts_equivalent_strength(dfs: pd.DataFrame):
+    fig = plt.figure()
+    # Preprocess them
+    # Retain only the first position to make it look like they are stronger
+    dfs.drop(dfs[dfs['position'] == 1].index, inplace=True)
+    dfs['victories'] = dfs['victories'].apply(lambda x: 0 if x else 1)
+    dfs.drop(dfs[dfs['mcts_budget'] > 95].index, inplace=True)
+
+    # Generate main plot
+    ax = sns.lineplot(
+        x='mcts_budget',
+        y='victories',
+        hue='training',
+        style='training',
+        data=dfs,
+        linewidth=3,
+        ci=None  # No error bars, increases readibility
+    )
+    # Add line
+    ax.axhline(0.8, color='black', linewidth=3, linestyle='--')
+    ax.text(s='Target winrate', x=20, y=0.8 + 0.02, fontsize='x-large')
+    # Add title and ticks
+    ax.set_ylabel('Winrate', fontsize='xx-large')
+    ax.set_xlabel('MCTS iteration budget', fontsize='medium')
+    ax.set_xticks([i for i in range(15, 101, 5)])
+    ax.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])
+    ax.set_xticklabels(ax.get_xticks(), fontsize='xx-large')
+    ax.set_yticklabels(ax.get_yticks(), fontsize='xx-large')
+    ax.legend(title='Trained episodes', title_fontsize='x-large', fontsize='xx-large', loc='lower right')
+    return fig
 
 
 if __name__ == '__main__':
@@ -610,20 +610,28 @@ if __name__ == '__main__':
     '''
 
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('--test_agents_results_path', required=False, help='Path to performance metrics about the test agents')
+    parser.add_argument('--test_agents_internal_benchmark_path', required=False, help='Path to internal benchmarking of test agents')
+    parser.add_argument('--test_agents_mcts_strength_path', required=False, help='Path to mcts_')
     parser.add_argument('--path_1', required=True, help='path to trained agents results (winrates) for test agent 1')
     parser.add_argument('--path_2', required=False, help='path to trained agents results (winrates) for test agent 2')
     parser.add_argument('--path_3', required=False, help='path to trained agents results (winrates) for test agent 3')
     parser.add_argument('--path_1_one_hot', required=False, help='path to trained agents (trained with one hot encoding actions) results (winrates) for test agent 1')
     parser.add_argument('--path_2_one_hot', required=False, help='path to trained agents (trained with one hot encoding actions) results (winrates) for test agent 2')
     parser.add_argument('--path_3_one_hot', required=False, help='path to trained agents (trained with one hot encoding actions) results (winrates) for test agent 3')
+    parser.add_argument('--path_multiple', required=False, help='path to trained agents results (winrates) for a combination of all test agents')
+    parser.add_argument('--path_multiple_one_hot', required=False, help='path to trained agents (trained with one hot encoding actions) results (winrates) for a combination of all test agents')
+    parser.add_argument('--save_path', default='saved_figures', help='Directory where generated figures will be saved')
     args = parser.parse_args()
+    os.makedirs(args.save_path, exist_ok=True)
 
     # If only path 1 is presentm copy its value everywhere
     if not(args.path_2 or args.path_3 or args.path_1_one_hot or args.path_2_one_hot or args.path_3_one_hot):
-        args.path_2, args.path_3, args.path_1_one_hot, args.path_2_one_hot, args.path_3_one_hot = [args.path_1] * 5
+        args.path_2, args.path_3, args.path_1_one_hot, args.path_2_one_hot, args.path_3_one_hot, args.path_multiple, args.path_multiple_one_hot = [args.path_1] * 7
     # Add arg parse here. Make everything optional except for the first one
     # pass all of these over to `run`
-    run(args.test_agents_results_path,
+    run(args.test_agents_internal_benchmark_path,
+        args.test_agents_mcts_strength_path,
         args.path_1, args.path_2, args.path_3,
-        args.path_1_one_hot, args.path_2_one_hot, args.path_3_one_hot)
+        args.path_1_one_hot, args.path_2_one_hot, args.path_3_one_hot,
+        args.path_multiple, args.path_multiple_one_hot,
+        save_dir=args.save_path)
