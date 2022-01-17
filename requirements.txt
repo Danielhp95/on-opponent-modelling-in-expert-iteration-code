@@ -1,7 +1,7 @@
 loguru
 streamlit
-seaborn
 matplotlib
+seaborn
 torch
 tensorboard
 rliable

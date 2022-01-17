@@ -32,6 +32,7 @@ def load_test_agent_results(test_agents_internal_benchmark_path: str, test_agent
     df3 = pd.read_csv(f'{test_agents_mcts_strength_path}/strong_mcts_equivalent_strenght_estimation_df.csv')
     df1['training'], df2['training'], df3['training'] = '200k', '400k', '600k'
     test_agents_mcts_strength_df = pd.concat([df1, df2, df3])
+    test_agents_mcts_strength_df.reset_index(inplace=True)
     return test_agents_internal, test_agents_mcts_strength_df
 
 
@@ -98,7 +99,7 @@ def run(test_agents_internal_benchmark_path: str,
     parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot,
     parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot,
     parsed_winrates_df_multiple, filtered_winrates_df_multiple,
-    #parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot,
+    parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot,
     all_filtered_winrates, all_parsed_winrates) = \
         load_and_process_df_against_fixed_agent(
             path_1, path_2, path_3, path_1_one_hot, path_2_one_hot, path_3_one_hot, path_multiple, path_multiple_one_hot,
@@ -147,6 +148,12 @@ def run(test_agents_internal_benchmark_path: str,
                    save_path=f'{save_dir}/full_vs_multiple.png'
     )
 
+    plot_component(title='## One hot VS All test agents',
+                   description=descriptions.apprentice_convergence, description_key='description 14',
+                   plot_func=partial(plot_winrate_progression, parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot, winrate_threshold, True),
+                   save_path=f'{save_dir}/oh_vs_multiple.png'
+    )
+
     plot_component(title=f'## Comparison of convergence time to {winrate_threshold}%',
                    description='TODO',
                    description_key='description 1333',
@@ -159,7 +166,7 @@ def run(test_agents_internal_benchmark_path: str,
                    description='TODO',
                    description_key='description 69',
                    plot_func=partial(plot_rliable_probability_of_improvement,
-                                     all_parsed_winrates),
+                                     all_filtered_winrates),
                    save_path=f'{save_dir}/probability_of_improvement.png'
     )
 
@@ -174,9 +181,9 @@ def run(test_agents_internal_benchmark_path: str,
     carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Strong')
     carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Strong')
     carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Strong')
-    #carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Multiple')
-    #carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Multiple')
-    #carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Multiple')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt', 'Multiple')
+    carry_ks_2samp(all_filtered_winrates, 'BRExIt-OMS', 'Multiple')
+    carry_ks_2samp(all_filtered_winrates, 'ExIt-OMFS', 'Multiple')
 
 
 def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
@@ -197,9 +204,8 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
     parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot = process_winrates_from_path_and_threshold(path_3_one_hot, winrate_threshold, is_one_hot=True)
     logger.info('Processing winrate data for multiple test agents')
     parsed_winrates_df_multiple, filtered_winrates_df_multiple = process_winrates_from_path_and_threshold(path_multiple, winrate_threshold)
-    #logger.info('Processing winrate data for multiple test agents. One hot')
-    #parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot = process_winrates_from_path_and_threshold(path_multiple_one_hot, winrate_threshold, is_one_hot=True)
-    ###
+    logger.info('Processing winrate data for multiple test agents. One hot')
+    parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot = process_winrates_from_path_and_threshold(path_multiple_one_hot, winrate_threshold, is_one_hot=True)
 
     # Adding info about which opponent these agents trained against
     filtered_winrates_df_test1['test_agent'] = 'Weak'
@@ -209,7 +215,7 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
     filtered_winrates_df_test2_one_hot['test_agent'] = 'Medium'
     filtered_winrates_df_test3_one_hot['test_agent'] = 'Strong'
     filtered_winrates_df_multiple['test_agent'] = 'Multiple'
-    #filtered_winrates_df_multiple_one_hot['test_agent'] = 'Multiple'
+    filtered_winrates_df_multiple_one_hot['test_agent'] = 'Multiple'
 
     ###
     all_filtered_winrates = pd.concat(
@@ -220,7 +226,7 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
      filtered_winrates_df_test2_one_hot,
      filtered_winrates_df_test3_one_hot,
      filtered_winrates_df_multiple,
-     #filtered_winrates_df_multiple_one_hot,
+     filtered_winrates_df_multiple_one_hot,
     ])
     all_parsed_winrates = pd.concat(
     [parsed_winrates_df_test1,
@@ -230,7 +236,7 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
      parsed_winrates_df_test2_one_hot,
      parsed_winrates_df_test3_one_hot,
      parsed_winrates_df_multiple,
-     #parsed_winrates_df_multiple_one_hot,
+     parsed_winrates_df_multiple_one_hot,
     ])
 
     return (parsed_winrates_df_test1, filtered_winrates_df_test1,
@@ -240,7 +246,7 @@ def load_and_process_df_against_fixed_agent(path_1, path_2, path_3,
            parsed_winrates_df_test2_one_hot, filtered_winrates_df_test2_one_hot,
            parsed_winrates_df_test3_one_hot, filtered_winrates_df_test3_one_hot,
            parsed_winrates_df_multiple, filtered_winrates_df_multiple,
-           #parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot,
+           parsed_winrates_df_multiple_one_hot, filtered_winrates_df_multiple_one_hot,
            all_filtered_winrates, all_parsed_winrates)
 
 
@@ -322,7 +328,7 @@ def plot_winrate_progression(parsed_winrates_df: pd.DataFrame,
         y='winrate',
         hue='algorithm',
         style='algorithm',
-        data=parsed_winrates_df.sort_values('algorithm'),
+        data=parsed_winrates_df.sort_values('algorithm').reset_index(),
         ax=ax2,
         palette='colorblind'
     )
@@ -361,6 +367,10 @@ def plot_winrate_progression(parsed_winrates_df: pd.DataFrame,
 def process_winrates_from_path_and_threshold(winrates_path: str, winrate_threshold: float,
                                              is_one_hot: bool=False) \
                                              -> Tuple[pd.DataFrame, pd.DataFrame]:
+    '''
+    Parsed winrate corresponds to the aggregated training values for a single algorithm
+    Filtered winrates corresponds only to values that have gone above the winrate winrate_threshold
+    '''
     target_ablation = 'apprentice_only'
     parsed_winrates_df = create_algorithm_ablation_winrate_df(winrates_path)
     # Shortens names: A hack for better naming
@@ -416,34 +426,40 @@ def plot_rliable_probability_of_improvement(df: pd.DataFrame):
     from rliable.plot_utils import plot_probability_of_improvement
     from rliable import metrics
 
-    #    return np.array([
-    #        df[(df['test_agent'] == 'Weak') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
-    #        df[(df['test_agent'] == 'Medium') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
-    #        df[(df['test_agent'] == 'Strong') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
-    #    ]) * -1  # We multiply by -1 because we care about which algorithm takes _less_ time
-    #             # Whereas rliable cares about maximizing values
+    # Generate probability_of_improvement files
+    import ipdb; ipdb.set_trace()
+    if not(os.path.exists('./probabilities_of_improvement/probability_estimates.pickle')):
+        os.makedirs('probabilities_of_improvement', exist_ok=True)
+        def extract_numpy_score_matrix(algorithm_name):
+            return np.array([
+                df[(df['test_agent'] == 'Weak') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+                df[(df['test_agent'] == 'Medium') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+                df[(df['test_agent'] == 'Strong') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+                df[(df['test_agent'] == 'Multiple') & (df['algorithm'] == algorithm_name)].elapsed_episodes.to_numpy(),
+            ]) * -1  # We multiply by -1 because we care about which algorithm takes _less_ time
+                     # Whereas rliable cares about maximizing values
 
-    #scores = {
-    #    alg: extract_numpy_score_matrix(alg)
-    #    for alg in df.algorithm.unique()
-    #}
+        scores = {
+            alg: extract_numpy_score_matrix(alg)
+            for alg in df.algorithm.unique()
+        }
 
-    #pair_scores = {}
-    #for i, a1 in enumerate(df.algorithm.unique()):
-    #    for a2 in df.algorithm.unique()[i:]:
-    #        if a1 == a2: continue
-    #        else:
-    #            pair_scores[f'{a1},{a2}'] = (scores[a1], scores[a2])
+        pair_scores = {}
+        for i, a1 in enumerate(df.algorithm.unique()):
+            for a2 in df.algorithm.unique()[i:]:
+                if a1 == a2: continue
+                else:
+                    pair_scores[f'{a1},{a2}'] = (scores[a1], scores[a2])
 
-    ## Remember to multiply performances by -1, as higher is worse in our original case
-    #probability_estimates, probability_confidence_intervals = rly.get_interval_estimates(
-    #    pair_scores, metrics.probability_of_improvement, reps=10000
-    #)
-    #pickle.dump(probability_estimates, open('probability_estimates.pickle', 'wb'))
-    #pickle.dump(probability_confidence_intervals, open('probability_confidence_intervals.pickle', 'wb'))
+        # Remember to multiply performances by -1, as higher is worse in our original case
+        probability_estimates, probability_confidence_intervals = rly.get_interval_estimates(
+            pair_scores, metrics.probability_of_improvement, reps=10000
+        )
+        pickle.dump(probability_estimates, open('./probabilities_of_improvement/probability_estimates.pickle', 'wb'))
+        pickle.dump(probability_confidence_intervals, open('./probabilities_of_improvement/probability_confidence_intervals.pickle', 'wb'))
 
-    probability_estimates = pickle.load(open('probability_estimates.pickle', 'rb'))
-    probability_confidence_intervals = pickle.load(open('probability_confidence_intervals.pickle', 'rb'))
+    probability_estimates = pickle.load(open('./probabilities_of_improvement/probability_estimates.pickle', 'rb'))
+    probability_confidence_intervals = pickle.load(open('./probabilities_of_improvement/probability_confidence_intervals.pickle', 'rb'))
     fig, ax = plt.subplots(1, 1)
     for key, value in list(probability_estimates.items()):
         if "OH" in key:
@@ -529,7 +545,7 @@ def plot_winrate_matrix(ax, winrate_matrix: np.ndarray):
     ax.set_xlabel('Agent ID')
     ax.set_ylabel('Agent ID')
     ax.set_ylim(len(winrate_matrix) + 0.2, -0.2)  # Required seaborn hack
-    ax.set_title('Empirical winrate matrix')
+    #ax.set_title('Empirical winrate matrix')  # No titles for ICML!
     return ax
 
 
