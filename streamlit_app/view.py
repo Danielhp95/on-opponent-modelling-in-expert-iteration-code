@@ -427,7 +427,6 @@ def plot_rliable_probability_of_improvement(df: pd.DataFrame):
     from rliable import metrics
 
     # Generate probability_of_improvement files
-    import ipdb; ipdb.set_trace()
     if not(os.path.exists('./probabilities_of_improvement/probability_estimates.pickle')):
         os.makedirs('probabilities_of_improvement', exist_ok=True)
         def extract_numpy_score_matrix(algorithm_name):
