@@ -89,18 +89,19 @@ TODO: Change / shorten path names once all training runs have finished
 ```bash
 cd streamlit_app/
 streamlit run view.py -- \
---test_agents_internal_benchmark_path ../benchmark_test_agents/test_agents \
+--test_agents_internal_benchmark_path ../benchmark_test_agents/test_agents_internal_benchmark \
 --test_agents_mcts_strength_path ../benchmark_test_agents/test_agents_mcts_equivalent_strength \
---path_1 ../train_against_test_agents/final_experiments/vs_weak_1st_december \
---path_2 ../train_against_test_agents/final_experiments/vs_medium_1st_december \
---path_3 ../train_against_test_agents/final_experiments/vs_strong_1st_december \
---path_1_one_hot ../train_against_test_agents/final_experiments/vs_weak_1st_december_one_hot \
---path_2_one_hot ../train_against_test_agents/final_experiments/vs_medium_1st_december_one_hot \
---path_3_one_hot ../train_against_test_agents/final_experiments/vs_strong_1st_december_one_hot \
---path_multiple ../train_against_test_agents/final_experiments/multiple_multiagent_10th_jan/ \
---path_multiple_one_hot TODO
+--path_1 ../train_against_test_agents/experiment_data/vs_weak \
+--path_2 ../train_against_test_agents/experiment_data/vs_medium \
+--path_3 ../train_against_test_agents/experiment_data/vs_strong \
+--path_1_one_hot ../train_against_test_agents/experiment_data/vs_weak_one_hot \
+--path_2_one_hot ../train_against_test_agents/experiment_data/vs_medium_one_hot \
+--path_3_one_hot ../train_against_test_agents/experiment_data/vs_strong_one_hot \
+--path_multiple ../train_against_test_agents/experiment_data/vs_multiple \
+--path_multiple_one_hot ../train_against_test_agents/experiment_data/vs_multiple_one_hot
 ```
 
 ### License
 
 We follow the [CRAPL License](https://matt.might.net/articles/crapl/). Please read the file [LICENSE](LICENSE).
+
