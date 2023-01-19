@@ -6,7 +6,7 @@ Best Response Expert Iteration (BRExIt) a more sample efficient enhancement on E
 
 ## Overview
 
-This repository contains information about the ICML 2022 submission **BRExIt: On Opponent Modelling in Expert Iteration**. This repository contains all the code, dependencies and explanation for every experiment in the publication. As a summary, it contains information about:
+This repository contains information about the IJCAI 2023 submission **BRExIt: On Opponent Modelling in Expert Iteration**. This repository contains all the code, dependencies and explanation for every experiment in the publication. As a summary, it contains information about:
 
 + Generating test agents
 + Benchmarking these test test agents
